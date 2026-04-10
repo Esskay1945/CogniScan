@@ -1,0 +1,51 @@
+const common = {
+  h1: { fontSize: 32, fontWeight: '800', letterSpacing: -0.5 },
+  h2: { fontSize: 24, fontWeight: '700' },
+  h3: { fontSize: 18, fontWeight: '600' },
+  body: { fontSize: 16, lineHeight: 24 },
+  caption: { fontSize: 12, fontWeight: '500', letterSpacing: 1, textTransform: 'uppercase' },
+};
+
+export const Colors = {
+  dark: {
+    primary: '#0066FF',
+    accent: '#00F0FF',
+    background: '#0A0A0F',
+    surface: '#151520',
+    surfaceElevated: '#1C1C2D',
+    success: '#00E676',
+    warning: '#FFD600',
+    error: '#FF3D00',
+    text: '#FFFFFF',
+    textSecondary: '#A0A0B8',
+    textDisabled: '#404050',
+    border: '#2A2A3A',
+    glow: 'rgba(0, 102, 255, 0.3)',
+    gradient: ['#0A0A0F', '#151520'],
+  },
+  light: {
+    primary: '#0055DD',
+    accent: '#00C8D2',
+    background: '#F4F7FA',
+    surface: '#FFFFFF',
+    surfaceElevated: '#EBEDF2',
+    success: '#00C853',
+    warning: '#FFAB00',
+    error: '#D50000',
+    text: '#1A1A2E',
+    textSecondary: '#62627A',
+    textDisabled: '#B0B0C0',
+    border: '#E0E4EB',
+    glow: 'rgba(0, 85, 221, 0.15)',
+    gradient: ['#F4F7FA', '#E0E4EB'],
+  }
+};
+
+export const Typography = common;
+
+export const WordBanks = [
+  ['APPLE', 'TABLE', 'PENNY'],
+  ['DOG', 'SHIRT', 'CHAIR'],
+  ['BOOK', 'PLANE', 'CLOCK'],
+  ['FISH', 'SHOES', 'RIVER']
+];
