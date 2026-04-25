@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
@@ -31,7 +31,9 @@ const RegisterScreen = ({ navigation }) => {
   const validateEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
   const strength = getStrength(password);
 
-  const handleRegister = () => {
+  const [loading, setLoading] = useState(false);
+
+  const handleRegister = async () => {
     const errs = {};
     if (!name.trim()) errs.name = 'Name is required';
     if (!email.trim()) errs.email = 'Email is required';
@@ -43,45 +45,78 @@ const RegisterScreen = ({ navigation }) => {
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
-    setUser({ name, email, age: Number(age) });
-    navigation.replace('WordPresentation');
+    setLoading(true);
+    try {
+      // 1. Create account in Firebase Auth
+      const { initializeFirebase, FirebaseAuth } = require('../engine/FirebaseBackend');
+      initializeFirebase();
+      const result = await FirebaseAuth.signUp(email, password);
+
+      if (!result.success) {
+        setErrors({ email: result.error });
+        setLoading(false);
+        return;
+      }
+
+      const ageNum = Number(age);
+      let ageBand = '18-35';
+      if (ageNum > 70) ageBand = '70+';
+      else if (ageNum > 55) ageBand = '55-70';
+      else if (ageNum > 35) ageBand = '36-55';
+
+      // 2. Save locally with Firebase UID
+      setUser({ 
+        name, 
+        email: email.toLowerCase(), 
+        age: ageNum,
+        uid: result.user.uid,
+        onboarding: { ageBand, completed: false } 
+      });
+      
+      setLoading(false);
+      // First-time users go through onboarding chain: Onboarding → Consent → Accessibility → Splash
+      navigation.replace('Onboarding');
+    } catch (e) {
+      setErrors({ email: e.message || 'Registration failed' });
+      setLoading(false);
+    }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.dark.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled">
 
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={24} color={Colors.dark.text} />
+            <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
 
-          <Text style={[Typography.h1, { color: Colors.dark.text }]}>Create Account</Text>
-          <Text style={{ color: Colors.dark.textSecondary, fontSize: 14, marginTop: 4, marginBottom: 28 }}>Begin your cognitive health journey</Text>
+          <Text style={[Typography.h1, { color: colors.text }]}>Create Account</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4, marginBottom: 28 }}>Begin your cognitive health journey</Text>
 
           {/* Name */}
-          <Text style={[styles.label, { color: Colors.dark.text }]}>Full Name</Text>
-          <TextInput style={[styles.input, { backgroundColor: Colors.dark.surface, color: Colors.dark.text, borderColor: errors.name ? colors.error : Colors.dark.border }]}
-            placeholder="John Doe" placeholderTextColor={Colors.dark.textDisabled} value={name}
+          <Text style={[styles.label, { color: colors.text }]}>Full Name</Text>
+          <TextInput style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: errors.name ? colors.error : colors.border }]}
+            placeholder="John Doe" placeholderTextColor={colors.textDisabled} value={name}
             onChangeText={(v) => { setName(v); setErrors(e => ({ ...e, name: undefined })); }} />
           {errors.name && <Text style={[styles.err, { color: colors.error }]}>{errors.name}</Text>}
 
           {/* Email */}
-          <Text style={[styles.label, { color: Colors.dark.text, marginTop: 14 }]}>Email</Text>
-          <TextInput style={[styles.input, { backgroundColor: Colors.dark.surface, color: Colors.dark.text, borderColor: errors.email ? colors.error : Colors.dark.border }]}
-            placeholder="you@example.com" placeholderTextColor={Colors.dark.textDisabled} value={email}
+          <Text style={[styles.label, { color: colors.text, marginTop: 14 }]}>Email</Text>
+          <TextInput style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: errors.email ? colors.error : colors.border }]}
+            placeholder="you@example.com" placeholderTextColor={colors.textDisabled} value={email}
             onChangeText={(v) => { setEmail(v); setErrors(e => ({ ...e, email: undefined })); }} autoCapitalize="none" keyboardType="email-address" />
           {errors.email && <Text style={[styles.err, { color: colors.error }]}>{errors.email}</Text>}
 
           {/* Password */}
-          <Text style={[styles.label, { color: Colors.dark.text, marginTop: 14 }]}>Password</Text>
-          <View style={[styles.pwRow, { backgroundColor: Colors.dark.surface, borderColor: errors.password ? colors.error : Colors.dark.border }]}>
-            <TextInput style={[styles.pwInput, { color: Colors.dark.text }]}
-              placeholder="Min 8 characters" placeholderTextColor={Colors.dark.textDisabled} value={password}
+          <Text style={[styles.label, { color: colors.text, marginTop: 14 }]}>Password</Text>
+          <View style={[styles.pwRow, { backgroundColor: colors.surface, borderColor: errors.password ? colors.error : colors.border }]}>
+            <TextInput style={[styles.pwInput, { color: colors.text }]}
+              placeholder="Min 8 characters" placeholderTextColor={colors.textDisabled} value={password}
               onChangeText={(v) => { setPassword(v); setErrors(e => ({ ...e, password: undefined })); }}
               secureTextEntry={!showPw} />
             <TouchableOpacity onPress={() => setShowPw(!showPw)} style={{ padding: 8 }}>
-              {showPw ? <EyeOff size={18} color={Colors.dark.textSecondary} /> : <Eye size={18} color={Colors.dark.textSecondary} />}
+              {showPw ? <EyeOff size={18} color={colors.textSecondary} /> : <Eye size={18} color={colors.textSecondary} />}
             </TouchableOpacity>
           </View>
           {errors.password && <Text style={[styles.err, { color: colors.error }]}>{errors.password}</Text>}
@@ -91,7 +126,7 @@ const RegisterScreen = ({ navigation }) => {
             <View style={styles.strengthRow}>
               <View style={styles.strengthBars}>
                 {[0, 1, 2, 3, 4].map(i => (
-                  <View key={i} style={[styles.strengthBar, { backgroundColor: i < strength ? strengthColors[strength] : Colors.dark.border }]} />
+                  <View key={i} style={[styles.strengthBar, { backgroundColor: i < strength ? strengthColors[strength] : colors.border }]} />
                 ))}
               </View>
               <Text style={{ color: strengthColors[strength], fontSize: 11, fontWeight: '600', marginLeft: 8 }}>
@@ -101,19 +136,28 @@ const RegisterScreen = ({ navigation }) => {
           )}
 
           {/* Age */}
-          <Text style={[styles.label, { color: Colors.dark.text, marginTop: 14 }]}>Age</Text>
-          <TextInput style={[styles.input, { backgroundColor: Colors.dark.surface, color: Colors.dark.text, borderColor: errors.age ? colors.error : Colors.dark.border }]}
-            placeholder="25" placeholderTextColor={Colors.dark.textDisabled} value={age}
+          <Text style={[styles.label, { color: colors.text, marginTop: 14 }]}>Age</Text>
+          <TextInput style={[styles.input, { backgroundColor: colors.surface, color: colors.text, borderColor: errors.age ? colors.error : colors.border }]}
+            placeholder="25" placeholderTextColor={colors.textDisabled} value={age}
             onChangeText={(v) => { setAge(v); setErrors(e => ({ ...e, age: undefined })); }} keyboardType="numeric" />
           {errors.age && <Text style={[styles.err, { color: colors.error }]}>{errors.age}</Text>}
 
-          <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary, marginTop: 28 }]} onPress={handleRegister} activeOpacity={0.85}>
-            <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Begin Assessment</Text>
+          <TouchableOpacity 
+            style={[styles.btn, { backgroundColor: colors.primary, marginTop: 28, opacity: loading ? 0.7 : 1 }]} 
+            onPress={handleRegister} 
+            activeOpacity={0.85}
+            disabled={loading}
+          >
+            {loading ? (
+              <ActivityIndicator color="#FFF" />
+            ) : (
+              <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Begin Assessment</Text>
+            )}
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.linkRow} onPress={() => navigation.goBack()}>
-            <Text style={{ color: Colors.dark.textSecondary, fontSize: 14 }}>Already have an account? </Text>
-            <Text style={{ color: Colors.dark.primary, fontWeight: '700', fontSize: 14 }}>Sign In</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Already have an account? </Text>
+            <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 14 }}>Sign In</Text>
           </TouchableOpacity>
 
         </ScrollView>

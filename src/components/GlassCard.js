@@ -1,15 +1,15 @@
 import React from 'react';
 import { View, StyleSheet, Platform } from 'react-native';
-import { Colors } from '../theme';
+import { useTheme } from '../context/ThemeContext';
 
-export const GlassCard = ({ children, style, theme = 'dark' }) => {
-  const colors = Colors[theme];
+export const GlassCard = ({ children, style }) => {
+  const { colors } = useTheme();
   return (
     <View style={[
       styles.card, 
       { 
-        backgroundColor: Colors.dark.surface,
-        borderColor: Colors.dark.border,
+        backgroundColor: colors.surface,
+        borderColor: colors.border,
       }, 
       style
     ]}>

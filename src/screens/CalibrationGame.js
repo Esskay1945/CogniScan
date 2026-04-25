@@ -42,9 +42,9 @@ const CCalibrationGame = ({ navigation }) => {
     : 0;
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.dark.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()}>
-        <ChevronLeft size={24} color={Colors.dark.text} />
+        <ChevronLeft size={24} color={colors.text} />
       </TouchableOpacity>
 
       <ScrollView contentContainerStyle={styles.center}>
@@ -53,18 +53,18 @@ const CCalibrationGame = ({ navigation }) => {
             <View style={[styles.iconBox, { backgroundColor: '#22C55E18' }]}>
               <Target size={40} color="#22C55E" />
             </View>
-            <Text style={[Typography.h2, { color: Colors.dark.text, textAlign: 'center' }]}>Reality Calibration</Text>
-            <Text style={{ color: Colors.dark.textSecondary, textAlign: 'center', fontSize: 14, marginTop: 6, marginBottom: 24 }}>
+            <Text style={[Typography.h2, { color: colors.text, textAlign: 'center' }]}>Reality Calibration</Text>
+            <Text style={{ color: colors.textSecondary, textAlign: 'center', fontSize: 14, marginTop: 6, marginBottom: 24 }}>
               Guess your own performance — how well do you really know yourself?
             </Text>
 
-            <View style={[styles.taskCard, { backgroundColor: Colors.dark.surface }]}>
-              <Text style={{ color: Colors.dark.text, fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
+            <View style={[styles.taskCard, { backgroundColor: colors.surface }]}>
+              <Text style={{ color: colors.text, fontSize: 15, textAlign: 'center', lineHeight: 22 }}>
                 {tasks[round]?.question || 'Rate yourself'}
               </Text>
             </View>
 
-            <Text style={{ color: Colors.dark.textSecondary, fontSize: 12, marginTop: 16, marginBottom: 8 }}>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 16, marginBottom: 8 }}>
               Your guess: {currentGuess ?? '—'}/100
             </Text>
 
@@ -73,15 +73,15 @@ const CCalibrationGame = ({ navigation }) => {
               {[0, 20, 40, 60, 80, 100].map(v => (
                 <TouchableOpacity
                   key={v}
-                  style={[styles.sliderBtn, { backgroundColor: currentGuess === v ? Colors.dark.primary : Colors.dark.surface }]}
+                  style={[styles.sliderBtn, { backgroundColor: currentGuess === v ? colors.primary : colors.surface }]}
                   onPress={() => setCurrentGuess(v)}
                 >
-                  <Text style={{ color: currentGuess === v ? '#FFF' : Colors.dark.text, fontWeight: '700', fontSize: 13 }}>{v}</Text>
+                  <Text style={{ color: currentGuess === v ? '#FFF' : colors.text, fontWeight: '700', fontSize: 13 }}>{v}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary, opacity: currentGuess == null ? 0.5 : 1 }]} onPress={submitGuess} disabled={currentGuess == null}>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, opacity: currentGuess == null ? 0.5 : 1 }]} onPress={submitGuess} disabled={currentGuess == null}>
               <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Submit Guess</Text>
             </TouchableOpacity>
           </View>
@@ -90,21 +90,21 @@ const CCalibrationGame = ({ navigation }) => {
         {phase === 'result' && (
           <View style={styles.introBox}>
             <Text style={{ fontSize: 48, marginBottom: 12 }}>{avgGap <= 15 ? '🎯' : avgGap <= 30 ? '👍' : '🤔'}</Text>
-            <Text style={[Typography.h2, { color: Colors.dark.text }]}>Calibration Score</Text>
-            <Text style={{ color: Colors.dark.textSecondary, fontSize: 14, marginTop: 4 }}>
-              Average gap between guess and actual: <Text style={{ color: Colors.dark.primary, fontWeight: '700' }}>{avgGap} pts</Text>
+            <Text style={[Typography.h2, { color: colors.text }]}>Calibration Score</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4 }}>
+              Average gap between guess and actual: <Text style={{ color: colors.primary, fontWeight: '700' }}>{avgGap} pts</Text>
             </Text>
 
             {guesses.map((g, i) => (
-              <View key={i} style={[styles.compareRow, { backgroundColor: Colors.dark.surface }]}>
+              <View key={i} style={[styles.compareRow, { backgroundColor: colors.surface }]}>
                 <View>
-                  <Text style={{ color: Colors.dark.textSecondary, fontSize: 11 }}>YOUR GUESS</Text>
-                  <Text style={{ color: Colors.dark.text, fontWeight: '700', fontSize: 18 }}>{g}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 11 }}>YOUR GUESS</Text>
+                  <Text style={{ color: colors.text, fontWeight: '700', fontSize: 18 }}>{g}</Text>
                 </View>
-                <Text style={{ color: Colors.dark.textDisabled, fontSize: 18 }}>vs</Text>
+                <Text style={{ color: colors.textDisabled, fontSize: 18 }}>vs</Text>
                 <View>
-                  <Text style={{ color: Colors.dark.textSecondary, fontSize: 11 }}>ACTUAL</Text>
-                  <Text style={{ color: Colors.dark.primary, fontWeight: '700', fontSize: 18 }}>{actuals[i]}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 11 }}>ACTUAL</Text>
+                  <Text style={{ color: colors.primary, fontWeight: '700', fontSize: 18 }}>{actuals[i]}</Text>
                 </View>
                 <View style={[styles.gapPill, { backgroundColor: Math.abs(g - actuals[i]) <= 15 ? colors.success + '20' : colors.warning + '20' }]}>
                   <Text style={{ color: Math.abs(g - actuals[i]) <= 15 ? colors.success : colors.warning, fontSize: 11, fontWeight: '700' }}>
@@ -114,11 +114,11 @@ const CCalibrationGame = ({ navigation }) => {
               </View>
             ))}
 
-            <Text style={{ color: Colors.dark.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 18 }}>
+            <Text style={{ color: colors.textSecondary, fontSize: 12, textAlign: 'center', marginTop: 16, lineHeight: 18 }}>
               {avgGap <= 15 ? 'Excellent self-awareness! You know your brain well.' : 'Your self-perception differs from actual performance. This awareness gap is an important signal.'}
             </Text>
 
-            <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary }]} onPress={() => navigation.goBack()}>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => navigation.goBack()}>
               <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Done</Text>
             </TouchableOpacity>
           </View>

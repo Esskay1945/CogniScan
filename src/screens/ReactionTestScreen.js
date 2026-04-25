@@ -2,10 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
+import { useData } from '../context/DataContext';
 import { Zap, ChevronLeft } from 'lucide-react-native';
 
 const ReactionTestScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
+  const { saveAssessmentScore } = useData();
   const words = route.params?.words || [];
   const [phase, setPhase] = useState('ready'); // ready | wait | tap | result
   const [results, setResults] = useState([]);
@@ -43,7 +45,9 @@ const ReactionTestScreen = ({ navigation, route }) => {
   const nextRound = () => {
     if (round >= TOTAL_ROUNDS) {
       // All done, go back to hub
-      navigation.navigate('TestHub', { words, completedTest: 'reaction' });
+      const reactionAvg = Math.round(results.reduce((a, b) => a + b, 0) / results.length);
+      saveAssessmentScore('reaction', reactionAvg);
+      navigation.navigate('TestHub', { ...route.params, completedTest: 'reaction', reactionAvg });
     } else {
       startRound();
     }
@@ -58,7 +62,7 @@ const ReactionTestScreen = ({ navigation, route }) => {
   const getColor = () => {
     if (phase === 'wait') return '#E74C3C';
     if (phase === 'tap') return colors.success;
-    return Colors.dark.background;
+    return colors.background;
   };
 
   return (
@@ -66,19 +70,19 @@ const ReactionTestScreen = ({ navigation, route }) => {
       {phase === 'ready' && (
         <View style={styles.center}>
           <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <ChevronLeft size={24} color={Colors.dark.text} />
+            <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={[styles.iconCircle, { backgroundColor: '#FF6B6B20' }]}>
             <Zap size={48} color="#FF6B6B" />
           </View>
-          <Text style={[Typography.h1, { color: Colors.dark.text, textAlign: 'center' }]}>Reaction Test</Text>
-          <Text style={[Typography.body, { color: Colors.dark.textSecondary, textAlign: 'center', marginTop: 8, fontSize: 14 }]}>
+          <Text style={[Typography.h1, { color: colors.text, textAlign: 'center' }]}>Reaction Test</Text>
+          <Text style={[Typography.body, { color: colors.textSecondary, textAlign: 'center', marginTop: 8, fontSize: 14 }]}>
             When the screen turns <Text style={{ color: colors.success, fontWeight: '700' }}>GREEN</Text>, tap as fast as you can!
           </Text>
-          <Text style={[Typography.caption, { color: Colors.dark.textSecondary, marginTop: 8 }]}>
+          <Text style={[Typography.caption, { color: colors.textSecondary, marginTop: 8 }]}>
             ROUND {round + 1} OF {TOTAL_ROUNDS}
           </Text>
-          <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary }]} onPress={startRound} activeOpacity={0.85}>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={startRound} activeOpacity={0.85}>
             <Text style={[Typography.h3, { color: '#FFF' }]}>{round === 0 ? 'Start' : 'Next Round'}</Text>
           </TouchableOpacity>
         </View>
@@ -100,18 +104,18 @@ const ReactionTestScreen = ({ navigation, route }) => {
       )}
 
       {phase === 'result' && (
-        <View style={[styles.center, { backgroundColor: Colors.dark.background }]}>
-          <Text style={[Typography.caption, { color: Colors.dark.textSecondary }]}>REACTION TIME</Text>
-          <Text style={[Typography.h1, { color: Colors.dark.primary, fontSize: 56, marginVertical: 12 }]}>
+        <View style={[styles.center, { backgroundColor: colors.background }]}>
+          <Text style={[Typography.caption, { color: colors.textSecondary }]}>REACTION TIME</Text>
+          <Text style={[Typography.h1, { color: colors.primary, fontSize: 56, marginVertical: 12 }]}>
             {reactionTime}<Text style={{ fontSize: 20 }}>ms</Text>
           </Text>
-          <Text style={{ color: Colors.dark.textSecondary, fontSize: 14, marginBottom: 4 }}>
+          <Text style={{ color: colors.textSecondary, fontSize: 14, marginBottom: 4 }}>
             {reactionTime < 250 ? 'Excellent!' : reactionTime < 350 ? 'Good' : reactionTime < 500 ? 'Average' : 'Keep practicing'}
           </Text>
-          <Text style={[Typography.caption, { color: Colors.dark.textDisabled, marginBottom: 32 }]}>
+          <Text style={[Typography.caption, { color: colors.textDisabled, marginBottom: 32 }]}>
             AVG: {avg}ms | ROUND {round}/{TOTAL_ROUNDS}
           </Text>
-          <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary }]} onPress={nextRound} activeOpacity={0.85}>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={nextRound} activeOpacity={0.85}>
             <Text style={[Typography.h3, { color: '#FFF' }]}>
               {round >= TOTAL_ROUNDS ? 'Finish Test' : 'Next Round'}
             </Text>

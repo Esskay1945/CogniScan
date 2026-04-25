@@ -2,12 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
+import { useData } from '../context/DataContext';
 import { Eye, ChevronLeft, RotateCcw } from 'lucide-react-native';
 
 const GRID_SIZE = 9; // 3x3
 
 const PatternTestScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
+  const { saveAssessmentScore } = useData();
   const words = route.params?.words || [];
   const [phase, setPhase] = useState('ready'); // ready | show | input | result
   const [level, setLevel] = useState(3); // starting pattern length
@@ -71,19 +73,21 @@ const PatternTestScreen = ({ navigation, route }) => {
   };
 
   const finish = () => {
-    navigation.navigate('TestHub', { words, completedTest: 'pattern' });
+    const finalPct = Math.round((score / TOTAL_ROUNDS) * 100);
+    saveAssessmentScore('pattern', finalPct);
+    navigation.navigate('TestHub', { ...route.params, completedTest: 'pattern', patternScore: score });
   };
 
   const getCellColor = (idx) => {
-    if (phase === 'show' && idx === pattern[showIndex]) return Colors.dark.primary;
+    if (phase === 'show' && idx === pattern[showIndex]) return colors.primary;
     if (phase === 'input' && userInput.includes(idx)) return colors.accent;
-    return Colors.dark.surface;
+    return colors.surface;
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.dark.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-        <ChevronLeft size={24} color={Colors.dark.text} />
+        <ChevronLeft size={24} color={colors.text} />
       </TouchableOpacity>
 
       <View style={styles.center}>
@@ -92,14 +96,14 @@ const PatternTestScreen = ({ navigation, route }) => {
             <View style={[styles.iconCircle, { backgroundColor: '#4F9DFF20' }]}>
               <Eye size={44} color="#4F9DFF" />
             </View>
-            <Text style={[Typography.h2, { color: Colors.dark.text, textAlign: 'center' }]}>Pattern Memory</Text>
-            <Text style={[Typography.body, { color: Colors.dark.textSecondary, textAlign: 'center', marginTop: 8, fontSize: 14 }]}>
+            <Text style={[Typography.h2, { color: colors.text, textAlign: 'center' }]}>Pattern Memory</Text>
+            <Text style={[Typography.body, { color: colors.textSecondary, textAlign: 'center', marginTop: 8, fontSize: 14 }]}>
               Watch the sequence, then tap the same cells in order
             </Text>
-            <Text style={[Typography.caption, { color: Colors.dark.textDisabled, marginTop: 8 }]}>
+            <Text style={[Typography.caption, { color: colors.textDisabled, marginTop: 8 }]}>
               ROUND {round + 1}/{TOTAL_ROUNDS} | SEQUENCE: {level}
             </Text>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary }]} onPress={startRound} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={startRound} activeOpacity={0.85}>
               <Text style={[Typography.h3, { color: '#FFF' }]}>Go</Text>
             </TouchableOpacity>
           </View>
@@ -107,7 +111,7 @@ const PatternTestScreen = ({ navigation, route }) => {
 
         {(phase === 'show' || phase === 'input') && (
           <View style={styles.gameZone}>
-            <Text style={[Typography.caption, { color: Colors.dark.textSecondary, marginBottom: 20, textAlign: 'center' }]}>
+            <Text style={[Typography.caption, { color: colors.textSecondary, marginBottom: 20, textAlign: 'center' }]}>
               {phase === 'show' ? 'MEMORIZE THE PATTERN' : 'YOUR TURN — TAP IN ORDER'}
             </Text>
             <View style={styles.grid}>
@@ -121,7 +125,7 @@ const PatternTestScreen = ({ navigation, route }) => {
                 />
               ))}
             </View>
-            <Text style={[Typography.caption, { color: Colors.dark.textDisabled, marginTop: 20, textAlign: 'center' }]}>
+            <Text style={[Typography.caption, { color: colors.textDisabled, marginTop: 20, textAlign: 'center' }]}>
               {phase === 'input' ? `${userInput.length}/${pattern.length} tapped` : `${showIndex + 1}/${pattern.length}`}
             </Text>
           </View>
@@ -130,13 +134,13 @@ const PatternTestScreen = ({ navigation, route }) => {
         {phase === 'result' && (
           <View style={styles.introBox}>
             <Text style={{ fontSize: 56, marginBottom: 16 }}>{score >= 3 ? '🎉' : score >= 2 ? '👍' : '🧠'}</Text>
-            <Text style={[Typography.h1, { color: Colors.dark.text, textAlign: 'center' }]}>
+            <Text style={[Typography.h1, { color: colors.text, textAlign: 'center' }]}>
               {score}/{TOTAL_ROUNDS}
             </Text>
-            <Text style={[Typography.body, { color: Colors.dark.textSecondary, textAlign: 'center', marginTop: 8 }]}>
+            <Text style={[Typography.body, { color: colors.textSecondary, textAlign: 'center', marginTop: 8 }]}>
               {score >= 3 ? 'Excellent memory!' : score >= 2 ? 'Good job!' : 'Keep training!'}
             </Text>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary }]} onPress={finish} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={finish} activeOpacity={0.85}>
               <Text style={[Typography.h3, { color: '#FFF' }]}>Continue</Text>
             </TouchableOpacity>
           </View>

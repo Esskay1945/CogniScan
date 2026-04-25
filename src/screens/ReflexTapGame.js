@@ -1,49 +1,81 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
-import { Typography, Colors } from '../theme';
+import { Typography } from '../theme';
 import { useTheme } from '../context/ThemeContext';
-import { ChevronLeft } from 'lucide-react-native';
+import { useData } from '../context/DataContext';
+import { ChevronLeft, Zap, Target as TargetIcon } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const AREA_W = width - 80;
-const AREA_H = 400;
+const AREA_W = width - 48;
+const AREA_H = 450;
 
-const ReflexTapGame = ({ navigation }) => {
+const ReflexTapGame = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const [phase, setPhase] = useState('intro');
+  const { data, completeAssignedGame, updateDifficulty, logMetaCognitive, logTypingRhythm } = useData();
+  const isMandatory = route.params?.isMandatory;
+  const gameId = 'ReflexTap';
+  
+  // Adaptation state
+  const currentDiff = data.difficulties?.[gameId] || 1;
+  const spawnDelay = Math.max(800, 2000 - (currentDiff * 120)); // Decreases with difficulty
+  const baseSize = Math.max(30, 60 - (currentDiff * 3)); // Smaller targets with difficulty
+
+  const [phase, setPhase] = useState('tutorial');
   const [target, setTarget] = useState(null);
   const [score, setScore] = useState(0);
   const [round, setRound] = useState(0);
   const [times, setTimes] = useState([]);
   const [startTime, setStartTime] = useState(0);
+  const [lastTapTime, setLastTapTime] = useState(Date.now());
   const timerRef = useRef(null);
-  const TOTAL = 10;
+  const TOTAL = 12;
 
   const spawnTarget = () => {
-    const size = 50 + Math.random() * 20;
+    const size = baseSize + Math.random() * 15;
     const x = Math.random() * (AREA_W - size);
     const y = Math.random() * (AREA_H - size);
-    const targetColors = ['#FF6B6B', '#4F9DFF', '#9B7BFF', '#22C55E', '#FBBF24'];
+    const targetColors = [colors.primary, colors.accent, colors.success, colors.warning, colors.error];
     const color = targetColors[Math.floor(Math.random() * targetColors.length)];
     setTarget({ x, y, size, color });
     setStartTime(Date.now());
 
-    // Miss timeout
     timerRef.current = setTimeout(() => {
       setRound(p => p + 1);
-      if (round + 1 >= TOTAL) setPhase('result');
+      if (round + 1 >= TOTAL) handleFinish();
       else spawnTarget();
-    }, 2000);
+    }, spawnDelay);
   };
 
   const handleTap = () => {
+    const now = Date.now();
+    const interval = now - lastTapTime;
+    setLastTapTime(now);
+    
+    // Step 1: Passive Rhythm Analysis
+    logTypingRhythm(interval);
+
     clearTimeout(timerRef.current);
     const rt = Date.now() - startTime;
     setTimes(p => [...p, rt]);
     setScore(p => p + 1);
     setRound(p => p + 1);
-    if (round + 1 >= TOTAL) { setPhase('result'); return; }
-    setTimeout(spawnTarget, 300);
+    if (round + 1 >= TOTAL) { handleFinish(); return; }
+    setTimeout(spawnTarget, 200);
+  };
+
+  const handleFinish = () => {
+    setPhase('result');
+    const accuracy = score / TOTAL;
+    const avgRt = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 2000;
+    
+    // Adaptation Engine: Update Difficulty
+    updateDifficulty(gameId, accuracy);
+    
+    // Meta-Cognitive Engine: Log Latency pattern
+    logMetaCognitive({ hesitation: avgRt, span: 30 });
+    
+    // retention Engine: Complete assignment
+    completeAssignedGame(gameId);
   };
 
   const start = () => {
@@ -59,65 +91,95 @@ const ReflexTapGame = ({ navigation }) => {
   const avg = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0;
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.dark.background }]}>
-      <TouchableOpacity style={styles.back} onPress={() => navigation.goBack()}>
-        <ChevronLeft size={24} color={Colors.dark.text} />
-      </TouchableOpacity>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <ChevronLeft size={24} color={colors.text} />
+        </TouchableOpacity>
+        <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '800' }}>LEVEL {currentDiff} Arena</Text>
+      </View>
 
-      {phase === 'intro' && (
-        <View style={styles.center}>
-          <Text style={{ fontSize: 48, marginBottom: 16 }}>⚡</Text>
-          <Text style={[Typography.h2, { color: Colors.dark.text, textAlign: 'center' }]}>Reflex Tap Arena</Text>
-          <Text style={{ color: Colors.dark.textSecondary, textAlign: 'center', fontSize: 14, marginTop: 6 }}>
-            Tap each target as fast as you can!
-          </Text>
-          <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary }]} onPress={start}>
-            <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Go!</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-
-      {phase === 'play' && (
-        <View style={styles.center}>
-          <Text style={{ color: Colors.dark.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 12 }}>
-            {score}/{TOTAL} HIT | ROUND {round + 1}
-          </Text>
-          <View style={[styles.arena, { backgroundColor: Colors.dark.surface }]}>
-            {target && (
-              <TouchableOpacity
-                style={[styles.target, { left: target.x, top: target.y, width: target.size, height: target.size, backgroundColor: target.color, borderRadius: target.size / 2 }]}
-                onPress={handleTap}
-                activeOpacity={0.7}
-              />
-            )}
+      <View style={styles.center}>
+        {phase === 'tutorial' && (
+          <View style={styles.introBox}>
+            <View style={[styles.glowBox, { backgroundColor: colors.primary + '15', borderColor: colors.primary }]}>
+                <TargetIcon size={44} color={colors.primary} />
+            </View>
+            <Text style={[Typography.h1, { color: colors.text, textAlign: 'center', marginTop: 24 }]}>Reflex Tap Arena</Text>
+            <Text style={{ color: colors.textSecondary, textAlign: 'center', fontSize: 13, marginTop: 12, lineHeight: 22 }}>
+              Tap the targets as fast as possible. The arena adapts to your speed—improving performance increases difficulty.
+            </Text>
+            <View style={styles.statsRow}>
+                <View style={styles.stat}>
+                    <Zap size={16} color={colors.warning} />
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700', marginLeft: 6 }}>{spawnDelay}ms WINDOW</Text>
+                </View>
+                <View style={styles.stat}>
+                    <Text style={{ color: colors.text, fontSize: 12, fontWeight: '700' }}>{Math.round(baseSize)}px SIZE</Text>
+                </View>
+            </View>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={start}>
+              <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16 }}>START</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-      )}
+        )}
 
-      {phase === 'result' && (
-        <View style={styles.center}>
-          <Text style={{ fontSize: 48, marginBottom: 12 }}>{score >= 8 ? '🏆' : score >= 6 ? '⚡' : '🧠'}</Text>
-          <Text style={[Typography.h1, { color: Colors.dark.text }]}>{score}/{TOTAL}</Text>
-          <Text style={{ color: Colors.dark.primary, fontSize: 18, fontWeight: '700', marginTop: 8 }}>Avg: {avg}ms</Text>
-          <Text style={{ color: Colors.dark.textSecondary, fontSize: 14, marginTop: 4 }}>
-            {avg < 400 ? 'Lightning fast!' : avg < 600 ? 'Good reflexes' : 'Keep training'}
-          </Text>
-          <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary }]} onPress={() => navigation.goBack()}>
-            <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Done</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+        {phase === 'play' && (
+          <View style={{ width: '100%', alignItems: 'center' }}>
+            <View style={styles.hud}>
+                <View style={styles.scorePill}>
+                    <Text style={{ color: colors.text, fontWeight: '900', fontSize: 18 }}>{score}</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '800', marginLeft: 4 }}>/{TOTAL}</Text>
+                </View>
+                <Text style={{ color: colors.primary, fontWeight: '900', fontSize: 14 }}>ROUND {round + 1}</Text>
+            </View>
+            <View style={[styles.arena, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+              {target && (
+                <TouchableOpacity
+                  style={[styles.target, { left: target.x, top: target.y, width: target.size, height: target.size, backgroundColor: target.color, borderRadius: target.size / 2, shadowColor: target.color, shadowOpacity: 0.5, shadowRadius: 10, elevation: 8 }]}
+                  onPress={handleTap}
+                  activeOpacity={0.7}
+                />
+              )}
+            </View>
+          </View>
+        )}
+
+        {phase === 'result' && (
+          <View style={styles.introBox}>
+            <Text style={{ fontSize: 64, marginBottom: 12 }}>{score >= 10 ? '⚡' : '🧠'}</Text>
+            <Text style={[Typography.h1, { color: colors.text }]}>{score}/{TOTAL}</Text>
+            <Text style={{ color: colors.animateColor || colors.primary, fontSize: 24, fontWeight: '900', marginTop: 12 }}>Avg: {avg}ms</Text>
+            <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 8, paddingHorizontal: 30, textAlign: 'center' }}>
+                Your reaction latency helps refine your cognitive process profile.
+            </Text>
+            <TouchableOpacity 
+                style={[styles.btn, { backgroundColor: colors.primary, width: 220 }]} 
+                onPress={() => navigation.goBack()}
+            >
+              <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16 }}>DONE</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </View>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 24 },
-  back: { marginTop: 44, width: 44, height: 44, justifyContent: 'center' },
-  center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  btn: { height: 54, borderRadius: 14, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, marginTop: 24 },
-  arena: { width: AREA_W, height: AREA_H, borderRadius: 20, overflow: 'hidden', position: 'relative' },
+  container: { flex: 1 },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 24, paddingTop: 60 },
+  center: { flex: 1, justifyContent: 'center', alignItems: 'center', padding: 24 },
+  introBox: { alignItems: 'center', width: '100%' },
+  glowBox: { width: 100, height: 100, borderRadius: 30, borderWidth: 1, justifyContent: 'center', alignItems: 'center' },
+  statsRow: { flexDirection: 'row', gap: 16, marginTop: 24 },
+  stat: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.03)' },
+  btn: { height: 60, borderRadius: 20, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 40, marginTop: 32 },
+  hud: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', width: AREA_W, marginBottom: 20 },
+  scorePill: { flexDirection: 'row', alignItems: 'baseline' },
+  arena: { width: AREA_W, height: AREA_H, borderRadius: 32, overflow: 'hidden', position: 'relative', borderWidth: 1.5 },
   target: { position: 'absolute' },
 });
 
 export default ReflexTapGame;
+

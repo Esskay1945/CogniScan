@@ -2,12 +2,18 @@ import React, { useState, useRef } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, Animated, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
+import { useData } from '../context/DataContext';
 import { Brain } from 'lucide-react-native';
 
 const DelayedRecallScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
+  const { saveAssessmentScore } = useData();
   const words = route.params?.words || [];
   const elapsed = route.params?.elapsed || 0;
+  const speechScore = route.params?.speechScore || 70;
+  const reactionAvg = route.params?.reactionAvg || null;
+  const patternScore = route.params?.patternScore != null ? route.params.patternScore : null;
+  const clockScore = route.params?.clockScore || null;
   const [inputs, setInputs] = useState(['', '', '']);
   const [submitted, setSubmitted] = useState(false);
   const [results, setResults] = useState([]);
@@ -22,19 +28,41 @@ const DelayedRecallScreen = ({ navigation, route }) => {
   const normalize = (s) => s.trim().toLowerCase().replace(/[^a-z]/g, '');
 
   const checkAnswers = () => {
-    const res = words.map((word, i) => {
-      const userWord = normalize(inputs[i]);
-      const correctWord = normalize(word);
-      
+    const normalizedWords = words.map(w => normalize(w));
+    const normalizedInputs = inputs.map(i => normalize(i));
+    const used = new Set();
+
+    // For each input slot, find the best match from the word list
+    const res = normalizedInputs.map((userWord) => {
       if (!userWord) return 'empty';
-      if (userWord === correctWord) return 'correct';
       
-      // Levenshtein distance for typo tolerance
-      const dist = levenshtein(userWord, correctWord);
-      if (dist <= 1) return 'correct'; // 1 typo = still correct
-      if (dist <= 2) return 'close';   // 2 typos = close
+      // Check exact match first
+      for (let j = 0; j < normalizedWords.length; j++) {
+        if (!used.has(j) && userWord === normalizedWords[j]) {
+          used.add(j);
+          return 'correct';
+        }
+      }
+      
+      // Check typo tolerance (Levenshtein distance <= 1)
+      for (let j = 0; j < normalizedWords.length; j++) {
+        if (!used.has(j) && levenshtein(userWord, normalizedWords[j]) <= 1) {
+          used.add(j);
+          return 'correct';
+        }
+      }
+      
+      // Check close match (distance <= 2)
+      for (let j = 0; j < normalizedWords.length; j++) {
+        if (!used.has(j) && levenshtein(userWord, normalizedWords[j]) <= 2) {
+          used.add(j);
+          return 'close';
+        }
+      }
+      
       return 'wrong';
     });
+    
     setResults(res);
     setSubmitted(true);
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
@@ -62,7 +90,9 @@ const DelayedRecallScreen = ({ navigation, route }) => {
   const closeCount = results.filter(r => r === 'close').length;
 
   const proceed = () => {
+    saveAssessmentScore('recall', correctCount);
     navigation.navigate('Results', {
+      ...route.params,
       recallScore: correctCount,
       recallClose: closeCount,
       recallTotal: words.length,
@@ -86,25 +116,25 @@ const DelayedRecallScreen = ({ navigation, route }) => {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: Colors.dark.background }]}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }} keyboardVerticalOffset={10}>
         <ScrollView contentContainerStyle={styles.scroll} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
 
           {/* Step dots */}
           <View style={styles.stepRow}>
-            {[colors.success, colors.success, Colors.dark.primary].map((c, i) => (
+            {[colors.success, colors.success, colors.primary].map((c, i) => (
               <React.Fragment key={i}>
-                {i > 0 && <View style={[styles.stepLine, { backgroundColor: i === 2 ? Colors.dark.primary : colors.success }]} />}
+                {i > 0 && <View style={[styles.stepLine, { backgroundColor: i === 2 ? colors.primary : colors.success }]} />}
                 <View style={[styles.stepDot, { backgroundColor: c }]} />
               </React.Fragment>
             ))}
           </View>
 
-          <View style={[styles.iconCircle, { backgroundColor: Colors.dark.accent + '18' }]}>
+          <View style={[styles.iconCircle, { backgroundColor: colors.accent + '18' }]}>
             <Brain size={40} color={colors.accent} />
           </View>
-          <Text style={[Typography.h1, { color: Colors.dark.text, textAlign: 'center' }]}>Word Recall</Text>
-          <Text style={{ color: Colors.dark.textSecondary, textAlign: 'center', marginTop: 6, fontSize: 14, marginBottom: 28 }}>
+          <Text style={[Typography.h1, { color: colors.text, textAlign: 'center' }]}>Word Recall</Text>
+          <Text style={{ color: colors.textSecondary, textAlign: 'center', marginTop: 6, fontSize: 14, marginBottom: 28 }}>
             Type the 3 words you were shown earlier
           </Text>
 
@@ -112,11 +142,11 @@ const DelayedRecallScreen = ({ navigation, route }) => {
             <View>
               {[0, 1, 2].map(i => (
                 <View key={i} style={{ marginBottom: 14 }}>
-                  <Text style={{ color: Colors.dark.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>WORD {i + 1}</Text>
+                  <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600', marginBottom: 4 }}>WORD {i + 1}</Text>
                   <TextInput
-                    style={[styles.wordInput, { backgroundColor: Colors.dark.surface, color: Colors.dark.text, borderColor: Colors.dark.border }]}
+                    style={[styles.wordInput, { backgroundColor: colors.surface, color: colors.text, borderColor: colors.border }]}
                     placeholder={`Type word ${i + 1}...`}
-                    placeholderTextColor={Colors.dark.textDisabled}
+                    placeholderTextColor={colors.textDisabled}
                     value={inputs[i]}
                     onChangeText={(v) => updateInput(i, v)}
                     autoCapitalize="none"
@@ -124,30 +154,30 @@ const DelayedRecallScreen = ({ navigation, route }) => {
                   />
                 </View>
               ))}
-              <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary, marginTop: 8 }]} onPress={checkAnswers} activeOpacity={0.85}>
+              <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, marginTop: 8 }]} onPress={checkAnswers} activeOpacity={0.85}>
                 <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>Check My Memory</Text>
               </TouchableOpacity>
             </View>
           ) : (
             <Animated.View style={{ opacity: fadeAnim }}>
-              <View style={[styles.scoreBox, { backgroundColor: Colors.dark.surface }]}>
+              <View style={[styles.scoreBox, { backgroundColor: colors.surface }]}>
                 <Text style={[Typography.h1, { color: correctCount >= 2 ? colors.success : colors.warning, fontSize: 44 }]}>
                   {correctCount}/{words.length}
                 </Text>
-                <Text style={{ color: Colors.dark.textSecondary, fontSize: 14, marginTop: 4 }}>
+                <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 4 }}>
                   {correctCount === 3 ? 'Perfect recall!' : correctCount === 2 ? 'Good memory' : 'Some words forgotten'}
                 </Text>
               </View>
 
               {words.map((word, i) => (
-                <View key={i} style={[styles.resultCard, { backgroundColor: Colors.dark.surface }]}>
+                <View key={i} style={[styles.resultCard, { backgroundColor: colors.surface }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: Colors.dark.textSecondary, fontSize: 11, fontWeight: '600' }}>EXPECTED</Text>
-                    <Text style={{ color: Colors.dark.text, fontWeight: '700', fontSize: 16 }}>{word}</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600' }}>EXPECTED</Text>
+                    <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>{word}</Text>
                   </View>
                   <View style={{ flex: 1, alignItems: 'center' }}>
-                    <Text style={{ color: Colors.dark.textSecondary, fontSize: 11, fontWeight: '600' }}>YOU SAID</Text>
-                    <Text style={{ color: Colors.dark.text, fontWeight: '600', fontSize: 16 }}>{inputs[i] || '—'}</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11, fontWeight: '600' }}>YOU SAID</Text>
+                    <Text style={{ color: colors.text, fontWeight: '600', fontSize: 16 }}>{inputs[i] || '—'}</Text>
                   </View>
                   <View style={[styles.badge, { backgroundColor: getColor(results[i]) + '20' }]}>
                     <Text style={{ color: getColor(results[i]), fontSize: 11, fontWeight: '700' }}>{getLabel(results[i])}</Text>
@@ -155,7 +185,7 @@ const DelayedRecallScreen = ({ navigation, route }) => {
                 </View>
               ))}
 
-              <TouchableOpacity style={[styles.btn, { backgroundColor: Colors.dark.primary, marginTop: 16 }]} onPress={proceed} activeOpacity={0.85}>
+              <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, marginTop: 16 }]} onPress={proceed} activeOpacity={0.85}>
                 <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>See Full Results</Text>
               </TouchableOpacity>
             </Animated.View>
