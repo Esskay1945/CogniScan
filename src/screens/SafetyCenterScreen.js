@@ -54,19 +54,19 @@ const SafetyCenterScreen = ({ navigation }) => {
               <ShieldAlert size={22} color={colors.warning} />
               <View style={{ marginLeft: 14, flex: 1 }}>
                 <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>Protected Mode</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>Warns you about suspicious activity</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>Preview setting</Text>
               </View>
             </View>
             <Switch value={scam.protectedMode} onValueChange={(val) => {
               toggleProtectedMode(val);
               Alert.alert(val ? 'Protected Mode ON' : 'Protected Mode OFF', 
-                val ? 'You will be warned about suspicious links and unknown contacts.' : 'Protection warnings have been turned off.');
+                val ? 'This preview stores your preference.' : 'Protection warnings have been turned off.');
             }} trackColor={{ false: colors.border, true: colors.warning }} thumbColor="#FFF" />
           </View>
           {scam.protectedMode && (
             <View style={[styles.subCard, { backgroundColor: colors.background, marginTop: 14 }]}>
               <Text style={{ color: colors.textDisabled, fontSize: 10, fontWeight: '800', marginBottom: 8 }}>PROTECTION FEATURES</Text>
-              {['✓ Warns about unknown contacts', '✓ Flags suspicious links', '✓ Logs risky actions for review'].map(f => (
+              {['Unknown contact warnings, link checks, and activity monitoring are unavailable in this build.'].map(f => (
                 <Text key={f} style={{ color: colors.textSecondary, fontSize: 12, marginTop: 4 }}>{f}</Text>
               ))}
             </View>
@@ -86,13 +86,13 @@ const SafetyCenterScreen = ({ navigation }) => {
               <Lock size={22} color={colors.error} />
               <View style={{ marginLeft: 14, flex: 1 }}>
                 <Text style={{ color: colors.text, fontWeight: '800', fontSize: 15 }}>Lockdown Mode</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>Restrict to essential features only</Text>
+                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>Preview setting</Text>
               </View>
             </View>
             <Switch value={care.lockdown} onValueChange={(val) => {
               toggleLockdown(val);
               Alert.alert(val ? 'Lockdown Mode ON' : 'Lockdown Mode OFF',
-                val ? 'Only essential features (Dashboard, Tests, Safety) are accessible. Advanced settings are locked.' : 'All features are now accessible again.');
+                val ? 'This preview stores your preference.' : 'All features are now accessible again.');
             }} trackColor={{ false: colors.border, true: colors.error }} thumbColor="#FFF" />
           </View>
           {care.lockdown && (

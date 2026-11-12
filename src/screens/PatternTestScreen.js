@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
@@ -46,10 +47,11 @@ const PatternTestScreen = ({ navigation, route }) => {
       return () => clearTimeout(timer);
     }
     if (phase === 'show' && showIndex >= pattern.length) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         setShowIndex(-1);
         setPhase('input');
       }, 400);
+      return () => clearTimeout(timer);
     }
   }, [phase, showIndex, pattern.length]);
 
@@ -74,8 +76,8 @@ const PatternTestScreen = ({ navigation, route }) => {
 
   const finish = () => {
     const finalPct = Math.round((score / TOTAL_ROUNDS) * 100);
-    saveAssessmentScore('pattern', finalPct);
-    navigation.navigate('TestHub', { ...route.params, completedTest: 'pattern', patternScore: score });
+    saveAssessmentScore('pattern', finalPct, { attemptId: route.params?.attemptId });
+    navigation.goBack();
   };
 
   const getCellColor = (idx) => {

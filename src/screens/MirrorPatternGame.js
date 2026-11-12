@@ -40,7 +40,7 @@ const MirrorPatternGame = ({ navigation, route }) => {
 
   const handleAnswer = (correct) => {
     const newScore = correct ? score + 1 : score;
-    if (round + 1 >= TOTAL) { const finalScore = Math.round((newScore / TOTAL) * 100); if (isMandatoryFlow) { saveAssessmentScore(testId, finalScore, { correct: newScore, total: TOTAL }); } else { saveGameResult({ gameId: 'MirrorPattern', category: 'visuospatial', score: finalScore, duration: 0 }); } setScore(newScore); setPhase('results'); }
+    if (round + 1 >= TOTAL) { const finalScore = Math.round((newScore / TOTAL) * 100); if (isMandatoryFlow) { saveAssessmentScore(testId, finalScore, { attemptId: route.params?.attemptId, correct: newScore, total: TOTAL }); } else { saveGameResult({ gameId: 'MirrorPattern', category: 'visuospatial', score: finalScore, duration: 0 }); } setScore(newScore); setPhase('results'); }
     else { setScore(newScore); setRound(round + 1); setTrial(genTrial()); }
   };
 
@@ -65,8 +65,8 @@ const MirrorPatternGame = ({ navigation, route }) => {
           style={[styles.btn, { backgroundColor: colors.primary }]} 
           onPress={() => {
             if (isMandatoryFlow) {
-              saveAssessmentScore(testId, (score / TOTAL) * 100);
-              navigation.navigate('TestHub', { ...route.params, completedTest: testId });
+
+              navigation.goBack();
             } else {
               navigation.goBack();
             }

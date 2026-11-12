@@ -1,15 +1,14 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { initializeSecurity, SecureStorage, Auth, RBAC, AuditLogger, Encryption } from '../engine/SecurityEngine';
-import { Sync } from '../engine/SyncEngine';
-import { initializeFirebase, isFirebaseConfigured, FirebaseAuth } from '../engine/FirebaseBackend';
+import React, { createContext, useContext, useState, useEffect, useRef } from 'react';
+import { AppState } from 'react-native';
+import * as Crypto from 'expo-crypto';
+import { supabase, loadAccount, saveAccount, eraseAccountData } from '../engine/AccountStorage';
+import { createPlan, normalizeMeasurement, summarizeAttempt, recommendTraining, gameKey, calculateStreak } from '../engine/AssessmentWorkflow';
+import { removeReminderRegistration } from '../engine/PushNotifications';
 import { PredictiveEngine, CareIntegrationEngine } from '../engine/PredictiveEngine';
 import { IntegrationLayer } from '../engine/IntegrationLayer';
 
 const DataContext = createContext();
 
-const USERS_INDEX_KEY = '@cogniscan_users';
-const ACTIVE_USER_KEY = '@cogniscan_active_user';
 
 const defaultUserData = {
   sessions: [],
@@ -35,6 +34,8 @@ const defaultUserData = {
   riskAssessment: null,      // { domains: { memory: 'low'|'moderate'|'high', ... }, mandatoryTests: [], date }
   assessmentScores: {},      // { testId: { score, date, details } }
   assessmentCompleted: false,
+  assessmentAttempt: null,
+  accessibilityCompleted: false,
 
   // ─── NEW: Gamification & Retention Engine ───
   xp: 0,
@@ -138,11 +139,6 @@ const defaultUserData = {
     role: 'USER', // USER, CLINICIAN, CAREGIVER
     permissions: ['READ_SELF', 'WRITE_SELF', 'EXPORT_REPORT'],
   },
-  pii: {
-    userId: 'USER_8829',
-    email: 'private@secure.com',
-    token: 'KJZ-9982-AXT', // Tokenized link to cognitive data
-  },
 
   // ─── ADVANCED COGNITIVE ENGINE (Modules 1-9) ───
   confounders: {
@@ -227,146 +223,180 @@ const defaultUserData = {
   dailyCheckIns: [],
 };
 
-const getUserStorageKey = (userId) => `@cogniscan_user_${userId}`;
+const freshData = () => JSON.parse(JSON.stringify(defaultUserData));
+
+function mergeChanges(base, update, latest) {
+  if (Object.is(base, update)) return latest;
+  if (!update || typeof update !== 'object' || Array.isArray(update) || !base) return update;
+  const result = { ...latest };
+  Object.keys(update).forEach(key => {
+    if (!Object.is(base[key], update[key])) result[key] = mergeChanges(base[key], update[key], latest?.[key]);
+  });
+  return result;
+}
 
 export const DataProvider = ({ children }) => {
-  const [data, setData] = useState({ user: null, ...defaultUserData });
+  const [session, setSession] = useState(undefined);
+  const [data, setData] = useState({ user: null, ...freshData() });
   const [loaded, setLoaded] = useState(false);
-  const [allUsers, setAllUsers] = useState([]);
+  const [accountError, setAccountError] = useState(null);
+  const [syncError, setSyncError] = useState(null);
+  const [reload, setReload] = useState(0);
+  const active = useRef(null);
+  const uid = session?.user?.id ?? null;
 
-  // Load active user on mount + initialize security/sync
   useEffect(() => {
-    (async () => {
-      try {
-        // Initialize security engine (encryption keys, audit logs)
-        await initializeSecurity();
-        // Initialize backend (Firebase)
-        initializeFirebase();
-        // Initialize sync engine (restore queue, monitor network)
-        await Sync.initialize();
-
-        const activeUserId = await AsyncStorage.getItem(ACTIVE_USER_KEY);
-        const usersRaw = await AsyncStorage.getItem(USERS_INDEX_KEY);
-        const users = usersRaw ? JSON.parse(usersRaw) : [];
-        setAllUsers(users);
-
-        if (activeUserId) {
-          // Try encrypted storage first, fallback to legacy
-          let parsed = await SecureStorage.load(getUserStorageKey(activeUserId));
-          if (!parsed) {
-            const raw = await AsyncStorage.getItem(getUserStorageKey(activeUserId));
-            if (raw) {
-              parsed = JSON.parse(raw);
-              // Migrate to encrypted storage
-              await SecureStorage.save(getUserStorageKey(activeUserId), parsed);
-            }
-          }
-          if (parsed) {
-            setData({ ...defaultUserData, ...parsed });
-            Auth.createSession(activeUserId, parsed.user?.email);
-          }
-        }
-      } catch (e) { console.warn('[DataContext] Init error:', e.message); }
-      setLoaded(true);
-    })();
-
-    return () => { Sync.destroy(); };
+    if (!supabase) {
+      setSession(null);
+      return undefined;
+    }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    const listener = AppState.addEventListener('change', state => {
+      if (state === 'active') supabase.auth.startAutoRefresh();
+      else supabase.auth.stopAutoRefresh();
+    });
+    if (AppState.currentState === 'active') supabase.auth.startAutoRefresh();
+    return () => {
+      subscription.unsubscribe();
+      listener.remove();
+      supabase.auth.stopAutoRefresh();
+    };
   }, []);
 
-  // Save user data — encrypted at rest + queued for sync
-  const persist = async (newData) => {
-    // ─── COGNITIVE DECAY LOGIC ───
-    const now = new Date();
-    if (newData.streaks?.lastActivity) {
-        const last = new Date(newData.streaks.lastActivity);
-        const diffDays = Math.floor((now - last) / (1000 * 60 * 60 * 24));
-        
-        // Decay check once per day
-        if (diffDays >= 1 && newData.lastDecayCheck !== now.toDateString()) {
-            let decayFactor = 1;
-            if (diffDays >= 7) decayFactor = 0.90; // -10% strong decay
-            else if (diffDays >= 3) decayFactor = 0.95; // -5% moderate
-            else if (diffDays >= 1) decayFactor = 0.98; // -2% minor
-            
-            if (decayFactor < 1) {
-                newData.xp = Math.max(0, Math.floor((newData.xp || 0) * decayFactor));
-                newData.lastDecayCheck = now.toDateString();
-                // Flag to show alert on next load
-                newData.decayAlertPending = true;
-            }
-        }
-    }
-
-    setData(newData);
-    if (newData.user?.email) {
-      const userId = newData.user.email.toLowerCase();
-      try {
-        // Encrypted storage at rest
-        await SecureStorage.save(getUserStorageKey(userId), newData);
-        // Also save to plain AsyncStorage as backup for data resilience
-        await AsyncStorage.setItem(getUserStorageKey(userId), JSON.stringify(newData));
-        await AsyncStorage.setItem(ACTIVE_USER_KEY, userId);
-        // Queue for server sync
-        Sync.syncState(userId, newData).catch(() => {});
-      } catch (e) {
-        console.warn('[DataContext] Persist error:', e.message);
-      }
-    }
+  const queueSave = (account, state) => {
+    const { user: _identity, ...payload } = state;
+    account.queue = account.queue.then(async () => {
+      account.revision = await saveAccount(account.uid, payload, account.revision);
+      if (active.current === account) setSyncError(null);
+    }).catch(error => {
+      if (active.current === account) setSyncError(error.message || 'Progress could not sync.');
+    });
+    return account.queue;
   };
 
-  const setUser = async (user) => {
-    const userId = user.email?.toLowerCase();
-    if (!userId) {
-      await persist({ ...data, user });
-      return;
+  useEffect(() => {
+    if (session === undefined) return undefined;
+    let canceled = false;
+    active.current = null;
+    setLoaded(false);
+    setAccountError(null);
+    setSyncError(null);
+    if (!uid) {
+      setData({ ...freshData(), user: null });
+      setLoaded(true);
+      return undefined;
     }
-
-    // Check if user exists in the index
-    let users = [...allUsers];
-    const existingIdx = users.findIndex(u => u.email?.toLowerCase() === userId);
-    
-    if (existingIdx === -1) {
-      // New user - add to index
-      users.push({ email: user.email, name: user.name, createdAt: new Date().toISOString() });
-      setAllUsers(users);
-      try { await AsyncStorage.setItem(USERS_INDEX_KEY, JSON.stringify(users)); } catch (e) {}
-      // Initialize with defaults
-      await persist({ ...defaultUserData, user });
-    } else {
-      // Existing user - load their data (try encrypted storage first, then legacy)
-      try {
-        let parsed = await SecureStorage.load(getUserStorageKey(userId));
-        if (!parsed) {
-          const raw = await AsyncStorage.getItem(getUserStorageKey(userId));
-          if (raw) {
-            parsed = JSON.parse(raw);
-            // Migrate to encrypted storage
-            await SecureStorage.save(getUserStorageKey(userId), parsed);
-          }
-        }
-        if (parsed) {
-          await persist({ ...defaultUserData, ...parsed, user: { ...parsed.user, ...user } });
-        } else {
-          await persist({ ...defaultUserData, user });
-        }
-      } catch (e) {
-        await persist({ ...defaultUserData, user });
+    loadAccount(uid).then(record => {
+      if (canceled) return;
+      const { user: _savedIdentity, ...saved } = record.state ?? {};
+      const defaults = freshData();
+      const snapshot = {
+        ...defaults,
+        ...saved,
+        adaptivePrefs: { ...defaults.adaptivePrefs, ...saved.adaptivePrefs },
+        consent: { ...defaults.consent, ...saved.consent },
+        security: { ...defaults.security, ...saved.security, lastAuth: null },
+        user: {
+          uid,
+          email: session.user.email,
+          name: session.user.user_metadata?.name || session.user.email?.split('@')[0] || 'User',
+        },
+      };
+      const account = { uid, state: snapshot, queue: Promise.resolve(), revision: record.revision };
+      active.current = account;
+      setData(snapshot);
+      setLoaded(true);
+      if (record.pending && !record.conflict) queueSave(account, snapshot);
+      if (record.conflict) setSyncError('Your progress changed on another device. This device kept its local copy.');
+    }).catch(error => {
+      if (!canceled) {
+        setAccountError(error.message || 'Could not load your account data.');
+        setLoaded(true);
       }
-    }
+    });
+    return () => { canceled = true; };
+  }, [uid, session === undefined, reload]);
+
+  const persist = update => {
+    const account = active.current;
+    if (!account || account.uid !== uid || account.erasing || account.signingOut) return Promise.resolve();
+    const next = typeof update === 'function' ? update(account.state) : mergeChanges(data, update, account.state);
+    if (next === account.state) return Promise.resolve();
+    account.state = next;
+    setData(next);
+    return queueSave(account, next);
   };
 
   const logout = async () => {
-    // Save current state before logout
-    if (data.user?.email) {
-      const userId = data.user.email.toLowerCase();
-      try {
-        await SecureStorage.save(getUserStorageKey(userId), data);
-        await AsyncStorage.setItem(getUserStorageKey(userId), JSON.stringify(data));
-      } catch (e) {}
+    const account = active.current;
+    if (account) {
+      account.signingOut = true;
+      await account.queue;
+      await removeReminderRegistration(account.uid).catch(() => {});
     }
-    try { await AsyncStorage.removeItem(ACTIVE_USER_KEY); } catch (e) {}
-    setData({ user: null, ...defaultUserData });
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
+    if (error) {
+      if (account) account.signingOut = false;
+      throw error;
+    }
   };
+
+  const eraseProgress = async () => {
+    const account = active.current;
+    if (!account || account.uid !== uid) throw new Error('Sign in before erasing progress.');
+    account.erasing = true;
+    try {
+      await account.queue;
+      await eraseAccountData(uid);
+      const state = { ...freshData(), user: account.state.user };
+      account.revision = 0;
+      account.state = state;
+      setData(state);
+      setSyncError(null);
+    } finally {
+      account.erasing = false;
+    }
+  };
+
+  const startAssessment = ({ hasHistory = false, background = {}, current = {}, answers = {} } = {}) => {
+    const plan = createPlan({ hasHistory, background, current });
+    const attempt = { id: Crypto.randomUUID(), plan, scores: {}, words: null, startedAt: new Date().toISOString(), answers };
+    persist(previous => ({
+      ...previous, assessmentAttempt: attempt, riskAssessment: plan, assessmentScores: {},
+      assessmentCompleted: false, questionnaireCompleted: true, questionnaireAnswers: answers,
+    }));
+    return plan;
+  };
+
+  const saveAssessmentWords = (attemptId, words) => persist(previous => {
+    const attempt = previous.assessmentAttempt;
+    if (!attempt || attempt.id !== attemptId || attempt.finishedAt || attempt.words) return previous;
+    return { ...previous, assessmentAttempt: { ...attempt, words, presentedAt: new Date().toISOString() } };
+  });
+
+  const finishAssessment = attemptId => persist(previous => {
+    const attempt = previous.assessmentAttempt;
+    if (!attempt || attempt.id !== attemptId || attempt.finishedAt) return previous;
+    const summary = summarizeAttempt(attempt);
+    if (!summary) return previous;
+    const date = new Date().toISOString();
+    const record = {
+      id: attempt.id, date, ...summary, mode: attempt.plan.mode,
+      reactionAvg: attempt.scores.reaction?.rawScore ?? null,
+      patternScore: attempt.scores.pattern?.score == null ? null : attempt.scores.pattern.score / 25,
+      recallScore: attempt.scores.recall.rawScore,
+      clockScore: attempt.scores.clock?.score ?? null,
+      testIds: Object.keys(attempt.scores).sort(),
+    };
+    return {
+      ...previous, assessmentCompleted: true,
+      assessmentAttempt: { ...attempt, finishedAt: date, summary },
+      sessions: [...previous.sessions, record],
+      baselineSet: true, baseline: previous.baselineSet ? previous.baseline : record,
+      assignedGames: recommendTraining(attempt.plan, summary.domainScores),
+      lastSessionDate: new Date().toDateString(),
+    };
+  });
 
   // Save a full test session and update cognitive twin baseline
   const saveSession = (session) => {
@@ -403,103 +433,53 @@ export const DataProvider = ({ children }) => {
   };
 
   // ─── Game Tracking ───
-  const saveGameResult = (gameResult) => {
-    // gameResult: { gameId, category, score, duration }
-    // Apply practice effect correction inline
-    const priorPlays = (data.gameHistory || []).filter(g => g.gameId === gameResult.gameId).length;
-    const practiceEffect = Math.min(0.15, priorPlays * 0.02);
-    const adjustedScore = Math.max(0, Math.round(gameResult.score * (1 - practiceEffect)));
-
-    const entry = {
-      ...gameResult,
-      rawScore: gameResult.score,
-      adjustedScore,
-      practiceCorrection: Math.round(practiceEffect * 100),
-      date: new Date().toISOString(),
-    };
-    const newGameHistory = [...(data.gameHistory || []), entry];
-
-    // Inline XP calculation (avoid calling addXP which has a separate persist)
-    const xpAmount = 15;
-    const newXP = (data.xp || 0) + xpAmount;
-    const newLevel = Math.floor(newXP / 100) + 1;
-    const newTrees = { ...data.skillTrees };
-    if (gameResult.category && newTrees[gameResult.category]) {
-      newTrees[gameResult.category].xp += xpAmount;
-      newTrees[gameResult.category].level = Math.floor(newTrees[gameResult.category].xp / 200) + 1;
-    }
-
-    // Update streak progress for today
-    const today = new Date().toDateString();
-    const streakProgress = { ...(data.streakProgress || {}) };
-    if (!streakProgress[today]) {
-      streakProgress[today] = { categories: [], gamesPlayed: 0 };
-    }
-    streakProgress[today].gamesPlayed += 1;
-    if (!streakProgress[today].categories.includes(gameResult.category)) {
-      streakProgress[today].categories.push(gameResult.category);
-    }
-
-    // Recalculate streak
-    const newStreak = calculateStreak(streakProgress);
-
-    // Inline learnOptimalWindow computation (avoid separate persist)
-    let deepIntelligenceUpdate = data.deepIntelligence || {};
-    if (newGameHistory.length >= 10 && newGameHistory.length % 10 === 0) {
-      const times = { morning: [], afternoon: [], evening: [] };
-      newGameHistory.forEach(g => {
-        const hour = new Date(g.date).getHours();
-        const period = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
-        times[period].push(g.score);
+  const saveGameResult = game => {
+    if (!Number.isFinite(game.score)) return;
+    const now = new Date();
+    const today = now.toDateString();
+    persist(previous => {
+      const key = gameKey(game.gameId);
+      const history = previous.gameHistory || [];
+      const plays = history.filter(entry => gameKey(entry.gameId) === key).length;
+      const assignment = previous.assignedGames.find(item => gameKey(item.id) === key);
+      const category = assignment?.domain || game.category;
+      const score = Math.max(0, Math.min(100, Math.round(game.score)));
+      const correction = Math.min(0.15, plays * 0.02);
+      const gameHistory = [...history, {
+        ...game, category, score, rawScore: score, adjustedScore: Math.round(score * (1 - correction)),
+        practiceCorrection: Math.round(correction * 100), date: now.toISOString(),
+      }];
+      const progress = previous.streakProgress[today] || { categories: [], gamesPlayed: 0 };
+      const todayProgress = { categories: [...new Set([...progress.categories, category])], gamesPlayed: progress.gamesPlayed + 1 };
+      const streakProgress = { ...previous.streakProgress, [today]: todayProgress };
+      const streak = calculateStreak(streakProgress, now);
+      const weakest = previous.assignedGames.find(item => item.status === 'mandatory')?.domain;
+      const missions = previous.dailyMissions?.date === today ? previous.dailyMissions.tasks : defaultUserData.dailyMissions.tasks;
+      let xpAward = 15;
+      const tasks = missions.map(task => {
+        if (task.completed) return task;
+        const completed = (task.id === '3games' && todayProgress.gamesPlayed >= 3)
+          || (task.id === 'weakest' && weakest === category)
+          || (task.id === 'perfect' && score === 100);
+        if (completed) xpAward += task.xp;
+        return { ...task, completed };
       });
-      const avgs = Object.keys(times).map(p => ({
-        period: p,
-        avg: times[p].length > 0 ? times[p].reduce((a, b) => a + b, 0) / times[p].length : 0
-      }));
-      const best = avgs.reduce((a, b) => a.avg > b.avg ? a : b).period;
-      deepIntelligenceUpdate = { ...deepIntelligenceUpdate, bestTimeWindow: best };
-    }
-
-    persist({
-      ...data,
-      gameHistory: newGameHistory,
-      streakProgress,
-      streak: newStreak,
-      lastSessionDate: today,
-      xp: newXP,
-      level: newLevel,
-      skillTrees: newTrees,
-      deepIntelligence: deepIntelligenceUpdate,
-    });
-  };
-
-  // Streak: user must play at least 1 game from each category OR 6 total games
-  const calculateStreak = (progress) => {
-    const REQUIRED_CATEGORIES = ['memory', 'attention', 'executive', 'language'];
-    const MIN_GAMES = 6;
-    let streak = 0;
-    let checkDate = new Date();
-
-    while (true) {
-      const dateStr = checkDate.toDateString();
-      const dayProgress = progress[dateStr];
-
-      if (!dayProgress) break;
-
-      const allCategoriesMet = REQUIRED_CATEGORIES.every(
-        cat => dayProgress.categories.includes(cat)
-      );
-      const enoughGames = dayProgress.gamesPlayed >= MIN_GAMES;
-
-      if (allCategoriesMet || enoughGames) {
-        streak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
+      const xp = previous.xp + xpAward;
+      const skillTrees = { ...previous.skillTrees };
+      if (skillTrees[category]) {
+        const domainXP = skillTrees[category].xp + 15;
+        skillTrees[category] = { ...skillTrees[category], xp: domainXP, level: Math.floor(domainXP / 200) + 1 };
       }
-    }
-
-    return streak;
+      return {
+        ...previous, gameHistory, streakProgress, streak, xp, skillTrees,
+        level: Math.floor(xp / 100) + 1, lastSessionDate: today,
+        dailyMissions: { date: today, tasks },
+        streaks: { ...previous.streaks, daily: streak, lastActivity: now.toISOString() },
+        assignedGames: previous.assignedGames.map(item => gameKey(item.id) === key
+          ? { ...item, completed: true, completedDate: today }
+          : item),
+      };
+    });
   };
 
   // Get today's streak progress
@@ -606,27 +586,14 @@ export const DataProvider = ({ children }) => {
 
   // Calculate drift between latest session and baseline
   const getDrift = () => {
-    if (!data.baselineSet || data.sessions.length < 2) {
+    const latest = data.sessions.at(-1);
+    const baseline = data.sessions.find(session => session.mode === latest?.mode
+      && session.testIds?.join() === latest?.testIds?.join());
+    if (!baseline || baseline === latest || !Number.isFinite(latest.overall) || !Number.isFinite(baseline.overall)) {
       return { hasDrift: false, overall: 0, details: {} };
     }
-    const latest = data.sessions[data.sessions.length - 1];
-    const b = data.baseline;
-
-    const reactionDrift = b.reactionAvg ? ((latest.reactionAvg - b.reactionAvg) / b.reactionAvg) * 100 : 0;
-    const recallDrift = b.recallScore != null ? ((b.recallScore - latest.recallScore) / Math.max(b.recallScore, 1)) * 100 : 0;
-    const patternDrift = b.patternScore != null ? ((b.patternScore - latest.patternScore) / Math.max(b.patternScore, 1)) * 100 : 0;
-
-    const overall = (Math.abs(reactionDrift) + Math.abs(recallDrift) + Math.abs(patternDrift)) / 3;
-
-    return {
-      hasDrift: overall > 10,
-      overall: Math.round(overall * 10) / 10,
-      details: {
-        reaction: Math.round(reactionDrift * 10) / 10,
-        recall: Math.round(recallDrift * 10) / 10,
-        pattern: Math.round(patternDrift * 10) / 10,
-      }
-    };
+    const overall = Math.max(0, baseline.overall - latest.overall);
+    return { hasDrift: overall >= 10, overall, details: {} };
   };
 
   // Recovery score based on recent trend
@@ -666,25 +633,26 @@ export const DataProvider = ({ children }) => {
     });
   };
 
-  const saveAssessmentScore = (testId, score, details = {}) => {
-    const newScores = {
-      ...(data.assessmentScores || {}),
-      [testId]: { score, date: new Date().toISOString(), ...details },
-    };
-    persist({ ...data, assessmentScores: newScores });
+  const saveAssessmentScore = (testId, rawScore, details = {}) => {
+    const score = normalizeMeasurement(testId, rawScore);
+    if (score === null) return Promise.resolve();
+    return persist(previous => {
+      const attempt = previous.assessmentAttempt;
+      if (!attempt || attempt.finishedAt || !attempt.plan.mandatoryTests.some(test => test.id === testId)) return previous;
+      if (details.attemptId && details.attemptId !== attempt.id) return previous;
+      const { attemptId: _attemptId, ...metadata } = details;
+      const scores = { ...attempt.scores, [testId]: { ...metadata, rawScore, score, date: new Date().toISOString() } };
+      return { ...previous, assessmentScores: scores, assessmentAttempt: { ...attempt, scores } };
+    });
   };
 
-  const markAssessmentCompleted = () => {
-    persist({ ...data, assessmentCompleted: true, lastSessionDate: new Date().toDateString() });
-  };
-
+  const markAssessmentCompleted = () => finishAssessment(data.assessmentAttempt?.id);
   const getAssessmentProgress = () => {
-    const assessment = data.riskAssessment;
-    if (!assessment) return { total: 0, completed: 0, tests: [] };
-    const mandatory = assessment.mandatoryTests || [];
-    const scores = data.assessmentScores || {};
-    const completed = mandatory.filter(t => scores[t.id] != null);
-    return { total: mandatory.length, completed: completed.length, tests: mandatory, scores };
+    const attempt = data.assessmentAttempt;
+    const tests = attempt?.plan.mandatoryTests || [];
+    const scores = attempt?.scores || {};
+    const completed = tests.filter(test => test.id === 'words' ? attempt.words : scores[test.id] != null).length;
+    return { total: tests.length, completed, tests, scores };
   };
 
   // ─── Gamification & Progression ───
@@ -734,44 +702,6 @@ export const DataProvider = ({ children }) => {
     });
 
     persist({ ...data, assignedGames: assignments });
-  };
-
-  const completeAssignedGame = (gameId) => {
-    const assignments = data.assignedGames.map(g => 
-      g.id === gameId ? { ...g, completed: true, completedDate: new Date().toDateString() } : g
-    );
-    
-    // Check missions
-    const today = new Date().toDateString();
-    let missions = data.dailyMissions || { tasks: [] };
-    if (missions.date !== today) {
-        missions = { date: today, tasks: defaultUserData.dailyMissions.tasks.map(t => ({ ...t, completed: false })) };
-    }
-    
-    // Count only games completed TODAY, not all-time
-    const gamesToday = assignments.filter(g => g.completedDate === today).length;
-    missions.tasks = missions.tasks.map(t => {
-        if (t.id === '3games' && gamesToday >= 3) return { ...t, completed: true };
-        return t;
-    });
-
-    // ─── VARIABLE REWARD SYSTEM ───
-    const rand = Math.random();
-    let bonusXP = 30;
-    if (rand < 0.1) bonusXP *= 2; 
-
-    const newXp = (data.xp || 0) + bonusXP;
-    const newLevel = Math.floor(newXp / 100) + 1;
-
-    persist({ 
-      ...data, 
-      assignedGames: assignments, 
-      dailyMissions: missions, 
-      lastSessionDate: today, 
-      streaks: { ...data.streaks, lastActivity: new Date().toISOString() },
-      xp: newXp,
-      level: newLevel
-    });
   };
 
   const updateDifficulty = (gameId, performance) => {
@@ -860,7 +790,7 @@ export const DataProvider = ({ children }) => {
   // Module 2: Calculate Confidence
   const calculateSignalReliability = () => {
     const c = data.confounders || {};
-    let score = 70; // Base confidence
+    let score = 90; // Heuristic session conditions indicator
     const factors = [];
 
     if ((c.sleep || 3) < 3) { score -= 15; factors.push('Poor sleep'); }
@@ -882,8 +812,8 @@ export const DataProvider = ({ children }) => {
 
     if (hasHighRisk) {
         return {
-            title: 'CLINICAL ACTION PATHWAY',
-            steps: ['Generate clinician report', 'Schedule neurology check-up', 'Notify family/caregiver'],
+            title: 'FOCUSED PRACTICE',
+            steps: ['Review your assessment results', 'Practice the recommended activities'],
             urgency: 'High',
             color: '#FF3B30'
         };
@@ -1155,16 +1085,6 @@ export const DataProvider = ({ children }) => {
     persist({ ...data, security: { ...data.security, auditLogs: [log, ...(data.security.auditLogs || [])].slice(0, 100) } });
   };
 
-  // Module 8: Anonymization
-  const getAnonymizedContainer = (payload) => {
-    // Decouple PII from Cognitive Metadata
-    return {
-        _token: data.pii.token,
-        _timestamp: new Date().toISOString(),
-        _data: payload
-    };
-  };
-
   const confirmSecurityAuth = () => {
     persist({ ...data, security: { ...data.security, lastAuth: new Date().toISOString() } });
   };
@@ -1182,9 +1102,7 @@ export const DataProvider = ({ children }) => {
     return daysSince >= 30;
   };
 
-  const updateConsent = (flags) => {
-    persist({ ...data, consent: { ...data.consent, ...flags, lastConsentDate: new Date().toISOString() } });
-  };
+  const updateConsent = saveConsent;
 
   // ─── ANOMALY DETECTION (Security Module 10) ───
   const detectAnomalies = () => {
@@ -1309,7 +1227,7 @@ export const DataProvider = ({ children }) => {
   };
 
   const getSyncStatus = () => {
-    return Sync.getStatus();
+    return { syncing: false, error: syncError, backendConfigured: !!supabase };
   };
 
   // ─── PINNACLE: PSYCHOMETRICS (Module 8) ───
@@ -1365,8 +1283,8 @@ export const DataProvider = ({ children }) => {
   // ─── PINNACLE: GOVERNANCE (Module 10) ───
   const getGovernanceTags = () => {
     return {
-      domainScores: { tag: 'Production', validated: true },
-      driftDetection: { tag: 'Production', validated: true },
+      domainScores: { tag: 'Experimental', validated: false },
+      driftDetection: { tag: 'Experimental', validated: false },
       passiveSignals: { tag: 'Pilot', validated: false },
       metaCognitive: { tag: 'Experimental', validated: false },
       scamProtection: { tag: 'Pilot', validated: false },
@@ -1381,33 +1299,61 @@ export const DataProvider = ({ children }) => {
     const meds = [...(data.medication.schedules || []), { id: Date.now().toString(), ...med, active: true }];
     persist({ ...data, medication: { ...data.medication, schedules: meds } });
   };
-  const logMedicationTaken = (medId) => {
-    const entry = { medId, timestamp: new Date().toISOString(), taken: true };
-    const history = [...(data.medication.history || []), entry];
-    const total = history.length;
-    const taken = history.filter(h => h.taken).length;
-    const adherence = Math.round((taken / Math.max(total, 1)) * 100);
-    persist({ ...data, medication: { ...data.medication, history, adherenceScore: adherence } });
+  const logMedication = (medId, taken) => {
+    const now = new Date();
+    const date = now.toDateString();
+    persist(previous => {
+      if (!previous.medication.schedules.some(medicine => medicine.id === medId)) return previous;
+      const history = [
+        ...previous.medication.history.filter(entry => entry.medId !== medId
+          || new Date(entry.timestamp).toDateString() !== date),
+        { medId, timestamp: now.toISOString(), taken },
+      ];
+      const missedCount = history.filter(entry => !entry.taken).length;
+      return {
+        ...previous,
+        medication: {
+          ...previous.medication, history, missedCount,
+          adherenceScore: Math.round((history.length - missedCount) * 100 / history.length),
+        },
+      };
+    });
   };
-  const logMedicationMissed = (medId) => {
-    const entry = { medId, timestamp: new Date().toISOString(), taken: false };
-    const history = [...(data.medication.history || []), entry];
-    const missed = (data.medication?.missedCount || 0) + 1;
-    const taken = history.filter(h => h.taken).length;
-    const adherence = Math.round((taken / Math.max(history.length, 1)) * 100);
-    persist({ ...data, medication: { ...data.medication, history, missedCount: missed, adherenceScore: adherence } });
-  };
+  const logMedicationTaken = medId => logMedication(medId, true);
+  const logMedicationMissed = medId => logMedication(medId, false);
 
-  // ─── CARE: DAILY CHECK-IN (Module 4) ───
-  const submitCheckIn = (response) => {
-    const entry = { date: new Date().toISOString(), response, status: response === 'ok' ? 'ok' : response === 'not_ok' ? 'concern' : 'no_response' };
-    const checkIns = [...(data.dailyCheckIns || []), entry];
-    const streak = response !== 'no_response' ? ((data.welfare?.checkInStreak || 0) + 1) : 0;
-    const recent = checkIns.slice(-7);
-    const responded = recent.filter(c => c.status !== 'no_response').length;
-    const reliability = Math.round((responded / Math.max(recent.length, 1)) * 100);
-    const nonResponseRisk = reliability < 50 ? 'high' : reliability < 75 ? 'moderate' : 'low';
-    persist({ ...data, dailyCheckIns: checkIns, welfare: { ...data.welfare, lastCheckIn: entry.date, checkInStreak: streak, responseReliability: reliability, nonResponseRisk, status: entry.status } });
+  const submitCheckIn = response => {
+    const now = new Date();
+    const today = now.toDateString();
+    const status = response === 'ok' ? 'ok' : response === 'not_ok' ? 'concern' : 'neutral';
+    persist(previous => {
+      const records = previous.dailyCheckIns.filter(item => new Date(item.date).toDateString() !== today);
+      const dailyCheckIns = [...records, { date: now.toISOString(), response, status }];
+      const days = new Set(dailyCheckIns.map(item => new Date(item.date).toDateString()));
+      const date = new Date(now);
+      let checkInStreak = 0;
+      while (days.has(date.toDateString())) {
+        checkInStreak++;
+        date.setDate(date.getDate() - 1);
+      }
+      const first = new Date(dailyCheckIns[0].date);
+      first.setHours(0, 0, 0, 0);
+      const check = new Date(now);
+      check.setHours(0, 0, 0, 0);
+      let measuredDays = 0;
+      let answeredDays = 0;
+      while (measuredDays < 7 && check >= first) {
+        measuredDays++;
+        if (days.has(check.toDateString())) answeredDays++;
+        check.setDate(check.getDate() - 1);
+      }
+      const responseReliability = Math.round(answeredDays * 100 / Math.max(1, measuredDays));
+      const nonResponseRisk = responseReliability < 50 ? 'high' : responseReliability < 75 ? 'moderate' : 'low';
+      return {
+        ...previous, dailyCheckIns,
+        welfare: { ...previous.welfare, lastCheckIn: now.toISOString(), checkInStreak, responseReliability, nonResponseRisk, status },
+      };
+    });
   };
 
   // ─── CARE: SCAM PROTECTION (Module 1) ───
@@ -1486,18 +1432,18 @@ export const DataProvider = ({ children }) => {
 
   return (
     <DataContext.Provider value={{
-      data, loaded, persist, setUser, logout, saveSession, getDrift, getRecovery, getLatestSession,
+      data, loaded: loaded && (uid === data.user?.uid || (!uid && !data.user) || !!accountError), session, accountError, syncError, retryAccount: () => setReload(v => v + 1), persist, logout, eraseProgress, startAssessment, saveAssessmentWords, finishAssessment, saveSession, getDrift, getRecovery, getLatestSession,
       saveGameResult, getTodayStreakProgress, getGameRecommendations,
       addFamilyMember, removeFamilyMember, generateWeeklyReport,
-      markQuestionnaireCompleted, allUsers,
+      markQuestionnaireCompleted,
       saveSelectedConditions, saveQuestionnaireAnswers, saveRiskAssessment,
       saveAssessmentScore, markAssessmentCompleted, getAssessmentProgress,
-      addXP, assignGamesFromResults, completeAssignedGame,
+      addXP, assignGamesFromResults, getCurrentStreak: () => calculateStreak(data.streakProgress),
       updateDifficulty, generateMicroGoals, logMetaCognitive, dismissDecayAlert,
       saveConfounders, calculateSignalReliability, getActionPathway, calculateWhatIfSimulation,
       calculateReadiness, monitorPerformance, adjustScore, saveOnboarding, saveConsent,
       logTypingRhythm, learnOptimalWindow, calculateDeepInsights,
-      verifyAccess, logSecurityEvent, getAnonymizedContainer, confirmSecurityAuth,
+      verifyAccess, logSecurityEvent, confirmSecurityAuth,
       isReConsentNeeded, updateConsent, detectAnomalies, generateMetaInsights,
       getImprovementData, getDomainExplanation, getCaregiverData,
       calculateTrajectory, calculatePsychometrics, calculateFairness, getGovernanceTags,

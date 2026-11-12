@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -7,7 +8,7 @@ import { Activity, Check, ChevronRight } from 'lucide-react-native';
 
 const FingerTappingScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const { saveAssessmentScore } = useData();
+  const { saveAssessmentScore, saveGameResult } = useData();
   const isMandatoryFlow = route.params?.isMandatoryFlow;
 
   const [phase, setPhase] = useState('ready'); // ready, tapping, result
@@ -22,7 +23,8 @@ const FingerTappingScreen = ({ navigation, route }) => {
       }, 1000);
     } else if (timeLeft === 0 && phase === 'tapping') {
         const score = Math.min(100, Math.round((taps / 50) * 100)); // Target 50 taps in 10s
-        saveAssessmentScore('fingerTap', score);
+        if (isMandatoryFlow) saveAssessmentScore('fingerTap', score, { attemptId: route.params?.attemptId });
+        else saveGameResult({ gameId: 'fingerTapping', category: 'motor', score, duration: 10 });
         setPhase('result');
     }
     return () => clearInterval(interval);
@@ -71,7 +73,7 @@ const FingerTappingScreen = ({ navigation, route }) => {
         <Check size={80} color={colors.success} />
         <Text style={[Typography.h1, { color: colors.text, marginTop: 24 }]}>MOTOR TEST DONE</Text>
         <Text style={{ color: colors.textSecondary, marginTop: 8 }}>You achieved {taps} taps in 10 seconds.</Text>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%', marginTop: 40 }]} onPress={() => navigation.navigate('TestHub', { ...route.params, completedTest: 'fingerTap' })}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%', marginTop: 40 }]} onPress={() => navigation.goBack()}>
           <Text style={{ color: '#FFF', fontWeight: '900' }}>CONTINUE</Text>
           <ChevronRight size={20} color="#FFF" />
         </TouchableOpacity>

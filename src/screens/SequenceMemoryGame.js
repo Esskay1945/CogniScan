@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -20,6 +21,8 @@ const SequenceMemoryGame = ({ navigation }) => {
     { id: 2, color: '#00E676', label: '■' },
     { id: 3, color: '#FFD600', label: '■' },
   ];
+
+  useRecordCompletedGame(phase === 'result', 'SequenceMemory', 'memory', Math.min(100, score * 10));
 
   const generateSequence = () => {
     return Array.from({ length: level }, () => Math.floor(Math.random() * 4));

@@ -1,0 +1,4 @@
+project_id = "cogniscan"
+
+[functions.send-training-reminders]
+verify_jwt = false

@@ -2,15 +2,14 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, KeyboardAvoidingView, Platform, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
-import { useData } from '../context/DataContext';
+import { supabase } from '../engine/AccountStorage';
 import { Brain, Mail, Lock, Sun, Moon, ShieldCheck, Activity } from 'lucide-react-native';
 
-const LoginScreen = ({ navigation }) => {
+const LoginScreen = ({ navigation, route }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState({});
   const { isDark, toggle, colors } = useTheme();
-  const { setUser, data } = useData();
 
   const validateEmail = (e) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e);
 
@@ -19,32 +18,21 @@ const LoginScreen = ({ navigation }) => {
   const handleLogin = async () => {
     const errs = {};
     if (!email.trim()) errs.email = 'Please enter your email';
-    else if (!validateEmail(email)) errs.email = 'Please enter a valid email';
+    else if (!validateEmail(email.trim())) errs.email = 'Please enter a valid email';
     if (!password) errs.password = 'Please enter your password';
-    else if (password.length < 8) errs.password = 'Password must be at least 8 characters';
     
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
     setLoading(true);
     try {
-      // Authenticate with Firebase
-      const { initializeFirebase, FirebaseAuth } = require('../engine/FirebaseBackend');
-      initializeFirebase();
-      const result = await FirebaseAuth.signIn(email, password);
+      if (!supabase) throw new Error('CogniScan account setup is missing.');
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+      if (error) throw error;
 
-      if (!result.success) {
-        setErrors({ email: result.error });
-        setLoading(false);
-        return;
-      }
-
-      // Set user locally with Firebase UID and route
-      setUser({ email: email.toLowerCase(), name: email.split('@')[0], uid: result.user.uid });
-      setLoading(false);
-      navigation.replace('Splash');
     } catch (e) {
       setErrors({ email: e.message || 'Login failed' });
+    } finally {
       setLoading(false);
     }
   };
@@ -57,6 +45,9 @@ const LoginScreen = ({ navigation }) => {
 
 
           <View style={styles.header}>
+            <Text style={{ color: colors.textSecondary, textAlign: 'center' }}>
+              {route.params?.registered ? 'Confirm your email, then sign in.' : 'Your assessment and training progress sync to your CogniScan account.'}
+            </Text>
             <View style={styles.logoContainer}>
               <Brain size={48} color={colors.primary} strokeWidth={1.5} />
               <View style={[styles.logoGlow, { backgroundColor: colors.glow }]} />

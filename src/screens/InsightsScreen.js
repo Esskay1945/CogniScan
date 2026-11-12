@@ -34,30 +34,11 @@ const InsightsScreen = ({ navigation }) => {
             <Text style={[Typography.h1, { color: colors.text, marginLeft: 12 }]}>YOUR INSIGHTS</Text>
         </View>
 
-        {/* Deep Predictive Projector */}
         <View style={[styles.deepCard, { backgroundColor: colors.surface, borderColor: colors.primary }]}>
-            <View style={styles.cardHeader}>
-                <Cpu size={20} color={colors.primary} />
-                <Text style={[Typography.caption, { color: colors.primary, marginLeft: 8 }]}>WHAT WE EXPECT</Text>
-            </View>
-            <Text style={[Typography.h1, { color: colors.text, marginTop: 12 }]}>30-DAY FORECAST</Text>
-            <View style={styles.projectionRow}>
-                <View style={[styles.projBox, { backgroundColor: colors.background }]}>
-                    <Text style={{ color: colors.textDisabled, fontSize: 10 }}>PROJECTED SCORE</Text>
-                    <Text style={{ color: colors.primary, fontSize: 24, fontWeight: '900' }}>88%</Text>
-                </View>
-                <ChevronRight size={20} color={colors.border} />
-                <View style={[styles.projBox, { backgroundColor: colors.primary + '15' }]}>
-                    <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '800' }}>IF ADHERENT</Text>
-                    <Text style={{ color: colors.success, fontSize: 24, fontWeight: '900' }}>92%</Text>
-                </View>
-            </View>
-            <View style={[styles.adviceBox, { backgroundColor: colors.background }]}>
-                <AlertCircle size={14} color={colors.textSecondary} />
-                <Text style={{ color: colors.textSecondary, fontSize: 11, marginLeft: 12, lineHeight: 16 }}>
-                    {insights.personalizedMessage}
-                </Text>
-            </View>
+          <Text style={[Typography.h2, { color: colors.text }]}>Latest assessment</Text>
+          <Text style={{ color: colors.textSecondary, marginTop: 8 }}>
+            {data.sessions.length ? `Task score: ${data.sessions.at(-1).overall ?? 'Unavailable'}${Number.isFinite(data.sessions.at(-1).overall) ? '%' : ''}` : 'Complete an assessment to see your scores.'}
+          </Text>
         </View>
 
         {/* Temporal Learning: Best Time to Test */}

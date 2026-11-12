@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Typography } from '../theme';
@@ -22,6 +23,8 @@ const RapidStoryGame = ({ navigation }) => {
     { text: "The primary function of lungs is to exchange ___.", options: ["WATER", "OXYGEN", "HEAT"], correct: "OXYGEN" },
     { text: "DNA is the genetic ___ of all living organisms.", options: ["CODE", "SHELL", "MOTOR"], correct: "CODE" },
   ];
+
+  useRecordCompletedGame(phase === 'result', 'RapidStory', 'language', Math.min(100, score / 5));
 
   const startLevel = () => {
     setPhase('play');

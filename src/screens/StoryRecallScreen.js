@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput } from 'react-native';
+import { View, StyleSheet, ScrollView, TextInput } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -14,7 +15,7 @@ const STORIES = [
   { text: "Last Thursday morning, Captain Reyes sailed his white boat from the harbor to the small island. He carried supplies including fresh water, canned soup, and warm blankets for the lighthouse keeper named Elsa.", keywords: ['THURSDAY', 'REYES', 'WHITE', 'BOAT', 'HARBOR', 'ISLAND', 'WATER', 'SOUP', 'BLANKETS', 'ELSA'] },
 ];
 
-const StoryRecallScreen = ({ navigation }) => {
+const StoryRecallScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { saveAssessmentScore } = useData();
   const [phase, setPhase] = useState('read'); // read, recall, result
@@ -27,14 +28,14 @@ const StoryRecallScreen = ({ navigation }) => {
 
   const handleRecall = () => {
     // Basic keyword checking for scoring
-    const upperText = userText.toUpperCase();
+    const words = new Set(userText.toUpperCase().match(/[A-Z]+/g) || []);
     let matches = 0;
     KEY_WORDS.forEach(word => {
-        if (upperText.includes(word)) matches++;
+        if (words.has(word)) matches++;
     });
     
     const score = Math.round((matches / KEY_WORDS.length) * 100);
-    saveAssessmentScore('storyRecall', score);
+    saveAssessmentScore('storyRecall', score, { attemptId: route.params?.attemptId });
     setPhase('result');
   };
 
@@ -82,7 +83,7 @@ const StoryRecallScreen = ({ navigation }) => {
       <View style={styles.center}>
         <Check size={64} color={colors.success} />
         <Text style={[Typography.h1, { color: colors.text, marginTop: 20 }]}>STORY RECALL DONE</Text>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.navigate('TestHub', { ...route.params, completedTest: 'storyRecall' })}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.goBack()}>
           <Text style={{ color: '#FFF', fontWeight: '900' }}>CONTINUE</Text>
           <ChevronRight size={20} color="#FFF" />
         </TouchableOpacity>

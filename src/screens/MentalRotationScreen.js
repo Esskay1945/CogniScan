@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -35,7 +36,7 @@ const ShapeRenderer = ({ points, rotation, size = 15 }) => {
 
 const MentalRotationScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const { saveAssessmentScore } = useData();
+  const { saveAssessmentScore, saveGameResult } = useData();
   const isMandatoryFlow = route.params?.isMandatoryFlow;
 
   const [round, setRound] = useState(0);
@@ -66,7 +67,9 @@ const MentalRotationScreen = ({ navigation, route }) => {
     if (round < 4) {
         setRound(round + 1);
     } else {
-        saveAssessmentScore('mentalRotation', score + (isTarget ? 20 : 0));
+        const finalScore = score + (isTarget ? 20 : 0);
+        if (isMandatoryFlow) saveAssessmentScore('mentalRotation', finalScore, { attemptId: route.params?.attemptId });
+        else saveGameResult({ gameId: 'mentalRotation', category: 'visuospatial', score: finalScore, duration: 0 });
         setComplete(true);
     }
   };
@@ -97,7 +100,7 @@ const MentalRotationScreen = ({ navigation, route }) => {
           <View style={styles.center}>
             <Move size={80} color={colors.success} />
             <Text style={[Typography.h1, { color: colors.text, marginTop: 24 }]}>VISUOSPATIAL DONE</Text>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.navigate('TestHub', { ...route.params, completedTest: 'mentalRotation' })}>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.goBack()}>
               <Text style={{ color: '#FFF', fontWeight: '900' }}>CONTINUE</Text>
               <ChevronRight size={20} color="#FFF" />
             </TouchableOpacity>

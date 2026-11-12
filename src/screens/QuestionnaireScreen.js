@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -110,54 +111,13 @@ const QUESTION_SETS = {
   },
 };
 
-// Test mapping by domain
-const DOMAIN_TESTS = {
-  memory: [
-    { id: 'wordRecall', label: 'Word Recall', route: 'WordPresentation' },
-    { id: 'pairedAssociate', label: 'Paired Associate Learning', route: 'PairedAssociate' },
-    { id: 'storyRecall', label: 'Story Recall', route: 'StoryRecall' },
-    { id: 'visualMemory', label: 'Visual Memory', route: 'VisualMemory' },
-    { id: 'recognitionMemory', label: 'Recognition Memory', route: 'RecognitionMemory' },
-  ],
-  attention: [
-    { id: 'digitSpan', label: 'Digit Span', route: 'NumberSpan' },
-    { id: 'goNoGo', label: 'Continuous Attention', route: 'GoNoGo' },
-    { id: 'visualSearch', label: 'Visual Search', route: 'VisualSearch' },
-    { id: 'symbolMatch', label: 'Symbol Matching', route: 'DigitSymbol' },
-    { id: 'trailA', label: 'Trail Making A', route: 'TrailMaking' },
-  ],
-  executive: [
-    { id: 'stroop', label: 'Stroop Test', route: 'StroopChallenge' },
-    { id: 'taskSwitch', label: 'Task Switching', route: 'RuleSwitch' },
-    { id: 'planning', label: 'Planning Test', route: 'MultiStepPlanner' },
-    { id: 'towerSort', label: 'Problem Solving', route: 'TowerSort' },
-    { id: 'verbalFluency', label: 'Verbal Fluency', route: 'VerbalFluency' },
-  ],
-  language: [
-    { id: 'objectNaming', label: 'Object Naming', route: 'ObjectNaming' },
-    { id: 'sentenceRep', label: 'Sentence Repetition', route: 'SentenceRepetition' },
-    { id: 'comprehension', label: 'Comprehension', route: 'Comprehension' },
-  ],
-  visuospatial: [
-    { id: 'mentalRotation', label: 'Mental Rotation', route: 'MentalRotation' },
-    { id: 'figureCopy', label: 'Figure Copy', route: 'MirrorPattern' },
-    { id: 'clockDraw', label: 'Clock Drawing', route: 'ClockTest' },
-  ],
-  motor: [
-    { id: 'fingerTap', label: 'Finger Tapping', route: 'FingerTapping' },
-    { id: 'dragPrecision', label: 'Drag Precision', route: 'PrecisionHold' },
-    { id: 'reactionSpeed', label: 'Reaction Speed', route: 'ReactionTest' },
-  ],
-};
-
 const QuestionnaireScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const { saveQuestionnaireAnswers, saveRiskAssessment } = useData();
-  const conditions = route.params?.conditions || [];
+  const conditions = route.params?.conditions;
 
   // Build flat question list from selected conditions
   const allQuestionGroups = useMemo(() => {
-    return conditions
+    return (conditions || [])
       .map(c => QUESTION_SETS[c.id])
       .filter(Boolean);
   }, [conditions]);
@@ -198,54 +158,16 @@ const QuestionnaireScreen = ({ navigation, route }) => {
   };
 
   const finishQuestionnaire = (finalAnswers) => {
-    saveQuestionnaireAnswers(finalAnswers);
-
-    // Calculate risk per domain
-    const domainYesCounts = { memory: 0, attention: 0, executive: 0, language: 0, visuospatial: 0, motor: 0 };
-    const domainTotalCounts = { memory: 0, attention: 0, executive: 0, language: 0, visuospatial: 0, motor: 0 };
-
-    conditions.forEach(cond => {
-      const qSet = QUESTION_SETS[cond.id];
-      if (!qSet) return;
-      const condAnswers = finalAnswers[cond.id] || {};
-      const yesCount = Object.values(condAnswers).filter(Boolean).length;
-
-      // Map condition's domains
-      qSet.domains.forEach(domain => {
-        domainYesCounts[domain] += yesCount;
-        domainTotalCounts[domain] += qSet.questions.length;
+    const background = {};
+    (conditions || []).forEach(({ id }) => {
+      const group = QUESTION_SETS[id];
+      if (!group) return;
+      const yes = Object.values(finalAnswers[id] || {}).filter(Boolean).length;
+      group.domains.forEach(domain => {
+        background[domain] = Math.max(background[domain] || 0, yes >= 3 ? 2 : yes >= 1 ? 1 : 0);
       });
     });
-
-    // Classify risk levels
-    const domains = {};
-    const mandatoryTests = [];
-
-    Object.keys(domainYesCounts).forEach(domain => {
-      const yes = domainYesCounts[domain];
-      let risk = 'low';
-      if (yes >= 3) risk = 'high';
-      else if (yes >= 1) risk = 'moderate';
-      domains[domain] = risk;
-
-      // Assign tests based on risk
-      const allTests = DOMAIN_TESTS[domain] || [];
-      if (risk === 'high') {
-        // Take 3 tests for high risk
-        allTests.slice(0, 3).forEach(t => {
-          if (!mandatoryTests.find(m => m.id === t.id)) mandatoryTests.push({ ...t, domain, risk });
-        });
-      } else if (risk === 'moderate') {
-        // Take 1-2 tests for moderate
-        allTests.slice(0, 2).forEach(t => {
-          if (!mandatoryTests.find(m => m.id === t.id)) mandatoryTests.push({ ...t, domain, risk });
-        });
-      }
-    });
-
-    const assessment = { domains, mandatoryTests, domainYesCounts, domainTotalCounts };
-    saveRiskAssessment(assessment);
-    navigation.navigate('RiskAssessment', { assessment });
+    navigation.navigate('SymptomFlow', { hasHistory: true, background, historyAnswers: finalAnswers });
   };
 
   if (!group || !question) return null;

@@ -33,52 +33,14 @@ const SplashScreen = ({ navigation }) => {
       // Fade out everything
       Animated.timing(fadeOut, { toValue: 0, duration: 400, useNativeDriver: true }),
     ]).start(() => {
-      // Decide where to go based on session history and questionnaire
-      const sessions = data.sessions || [];
-      const questionnaireCompleted = data.questionnaireCompleted || false;
-      const riskAssessment = data.riskAssessment || null;
-      const assessmentCompleted = data.assessmentCompleted || false;
-      const onboardingCompleted = data.onboarding?.completed || false;
-      const isLoggedIn = !!data.user?.email;
-
-      // Guard: must be logged in first
-      if (!isLoggedIn) {
-        navigation.replace('Login');
-      // Guard: onboarding must be completed first
-      } else if (!onboardingCompleted) {
-        navigation.replace('Onboarding');
-      } else if (sessions.length > 0) {
-        // User has previous sessions — check how long ago
-        const lastSession = sessions[sessions.length - 1];
-        const lastDate = new Date(lastSession.date);
-        const now = new Date();
-        const daysSinceLast = Math.floor((now - lastDate) / (1000 * 60 * 60 * 24));
-        
-        if (daysSinceLast < 7) {
-          // Less than a week — go straight to dashboard
-          navigation.replace('Main');
-        } else {
-          // A week or more — do a quick readiness check then go to dashboard
-          navigation.replace('ReadinessCheck', { game: { id: 'Main' } });
-        }
-      } else if (!questionnaireCompleted) {
-        // First time — full flow: questionnaire first
-        navigation.replace('EntryQuestion');
-      } else if (riskAssessment && !assessmentCompleted) {
-        // Questionnaire done, but brain tests pending
-        navigation.replace('ReadinessCheck', { game: { id: 'TestHub' }, isMandatoryFlow: true });
-      } else if (!riskAssessment) {
-        // Safety: should have had a risk assessment if questionnaire done
-        navigation.replace('EntryQuestion');
+      if (!data.accessibilityCompleted) {
+        navigation.replace('AccessibilitySetup', { fromOnboarding: true });
+      } else if (data.assessmentCompleted) {
+        navigation.replace('Main');
+      } else if (data.assessmentAttempt) {
+        navigation.replace('TestHub');
       } else {
-        // Everything done, just no sessions yet
-        const lastSessionDate = data.lastSessionDate;
-        const today = new Date().toDateString();
-        if (lastSessionDate !== today) {
-          navigation.replace('ReadinessCheck', { game: { id: 'Main' } });
-        } else {
-          navigation.replace('Main');
-        }
+        navigation.replace('EntryQuestion');
       }
     });
   }, []);

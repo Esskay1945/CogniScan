@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -36,6 +37,7 @@ const AccessibilitySetupScreen = ({ navigation, route }) => {
   const SettingItem = ({ id, title, desc, icon: Icon }) => (
     <TouchableOpacity 
         style={[styles.card, { backgroundColor: colors.surface, borderColor: prefs[id] ? colors.primary : colors.border }]}
+        accessibilityRole="checkbox" accessibilityState={{ checked: !!prefs[id] }}
         onPress={() => togglePref(id)}
     >
       <View style={[styles.iconBox, { backgroundColor: colors.primary + '10' }]}>

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Dimensions } from 'react-native';
+import { View, StyleSheet, TextInput, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -72,7 +73,7 @@ const PairedAssociateScreen = ({ navigation, route }) => {
         PAIRS.forEach((p, i) => {
             if (newAnswers[i] === p.p2) score += 20;
         });
-        saveAssessmentScore('pairedAssociate', score);
+        saveAssessmentScore('pairedAssociate', score, { attemptId: route.params?.attemptId });
         setPhase('result');
     }
   };
@@ -134,7 +135,7 @@ const PairedAssociateScreen = ({ navigation, route }) => {
       <View style={styles.content}>
         <Brain size={64} color={colors.success} />
         <Text style={[Typography.h1, { color: colors.text, marginTop: 20 }]}>TEST COMPLETE</Text>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => navigation.navigate('TestHub', { ...route.params, completedTest: 'pairedAssociate' })}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => navigation.goBack()}>
           <Text style={{ color: '#FFF', fontWeight: '900' }}>CONTINUE</Text>
           <ChevronRight size={20} color="#FFF" />
         </TouchableOpacity>

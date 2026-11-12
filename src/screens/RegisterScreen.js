@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
+import { Alert, View, Text, StyleSheet, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator } from 'react-native';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
-import { useData } from '../context/DataContext';
+import { supabase } from '../engine/AccountStorage';
 import { ChevronLeft, User, Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
 
 const getStrength = (pw) => {
@@ -20,7 +20,6 @@ const strengthColors = ['#FF5252', '#FF5252', '#FBBF24', '#FBBF24', '#22C55E', '
 
 const RegisterScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const { setUser } = useData();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -37,47 +36,28 @@ const RegisterScreen = ({ navigation }) => {
     const errs = {};
     if (!name.trim()) errs.name = 'Name is required';
     if (!email.trim()) errs.email = 'Email is required';
-    else if (!validateEmail(email)) errs.email = 'Enter a valid email';
+    else if (!validateEmail(email.trim())) errs.email = 'Enter a valid email';
     if (!password) errs.password = 'Password is required';
     else if (password.length < 8) errs.password = 'Minimum 8 characters';
-    if (!age.trim()) errs.age = 'Age is required';
-    else if (isNaN(Number(age)) || Number(age) < 1 || Number(age) > 120) errs.age = 'Enter a valid age';
+    if (age.trim() && (!Number.isInteger(Number(age)) || Number(age) < 1 || Number(age) > 120)) errs.age = 'Enter a valid age';
     setErrors(errs);
     if (Object.keys(errs).length > 0) return;
 
     setLoading(true);
     try {
-      // 1. Create account in Firebase Auth
-      const { initializeFirebase, FirebaseAuth } = require('../engine/FirebaseBackend');
-      initializeFirebase();
-      const result = await FirebaseAuth.signUp(email, password);
-
-      if (!result.success) {
-        setErrors({ email: result.error });
-        setLoading(false);
-        return;
+      if (!supabase) throw new Error('CogniScan account setup is missing.');
+      const { data, error } = await supabase.auth.signUp({
+        email: email.trim(), password, options: { data: { name: name.trim() } },
+      });
+      if (error) throw error;
+      if (!data.session) {
+        Alert.alert('Check your email', 'Confirm your email address, then return here to sign in.');
+        navigation.replace('Login', { registered: true });
       }
 
-      const ageNum = Number(age);
-      let ageBand = '18-35';
-      if (ageNum > 70) ageBand = '70+';
-      else if (ageNum > 55) ageBand = '55-70';
-      else if (ageNum > 35) ageBand = '36-55';
-
-      // 2. Save locally with Firebase UID
-      setUser({ 
-        name, 
-        email: email.toLowerCase(), 
-        age: ageNum,
-        uid: result.user.uid,
-        onboarding: { ageBand, completed: false } 
-      });
-      
-      setLoading(false);
-      // First-time users go through onboarding chain: Onboarding → Consent → Accessibility → Splash
-      navigation.replace('Onboarding');
     } catch (e) {
       setErrors({ email: e.message || 'Registration failed' });
+    } finally {
       setLoading(false);
     }
   };

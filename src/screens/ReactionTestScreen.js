@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
@@ -46,8 +47,8 @@ const ReactionTestScreen = ({ navigation, route }) => {
     if (round >= TOTAL_ROUNDS) {
       // All done, go back to hub
       const reactionAvg = Math.round(results.reduce((a, b) => a + b, 0) / results.length);
-      saveAssessmentScore('reaction', reactionAvg);
-      navigation.navigate('TestHub', { ...route.params, completedTest: 'reaction', reactionAvg });
+      saveAssessmentScore('reaction', reactionAvg, { attemptId: route.params?.attemptId });
+      navigation.goBack();
     } else {
       startRound();
     }

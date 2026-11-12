@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -30,6 +31,8 @@ const WordScrambleGame = ({ navigation }) => {
     'RHYTHM', 'MELODY', 'SPIRIT', 'WANDER', 'BREEZE', 'GLACIER',
     'WISDOM', 'VISION', 'HARBOR', 'LEGEND', 'VOYAGE', 'ZENITH',
   ];
+
+  useRecordCompletedGame(phase === 'result', 'WordScramble', 'language', score / TOTAL * 100);
 
   const scramble = (word) => {
     const arr = word.split('');

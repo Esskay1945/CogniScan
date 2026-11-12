@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
+import { registerTrainingReminder, removeReminderRegistration } from '../engine/PushNotifications';
+import { View, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -10,13 +12,13 @@ import {
 
 const PrivacyCenterScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const { data, persist, logSecurityEvent } = useData();
-  const [biometrics, setBiometrics] = useState(data.security.biometricsActive);
-
-  const toggleBiometrics = (val) => {
-    setBiometrics(val);
-    persist({ ...data, security: { ...data.security, biometricsActive: val } });
-    logSecurityEvent('SECURITY_SETTING_CHANGED', { biometrics: val });
+  const { data, eraseProgress } = useData();
+  const [busy, setBusy] = useState(false);
+  const run = async action => {
+    setBusy(true);
+    try { await action(); }
+    catch (error) { Alert.alert('Action failed', error.message || 'Please try again.'); }
+    finally { setBusy(false); }
   };
 
   const menuItems = [
@@ -27,26 +29,20 @@ const PrivacyCenterScreen = ({ navigation }) => {
         color: colors.primary 
     },
     { 
-        title: 'Authorized Caregivers', 
-        desc: 'Manage who in your family can see your health alerts.', 
-        icon: Bell, 
-        color: colors.accent 
+        title: 'Enable Training Reminder',
+        desc: 'Receive one generic Android reminder each day at 7 pm.',
+        icon: Bell,
+        color: colors.accent
     },
-    { 
-        title: 'Doctor Access', 
-        desc: 'Create a secure link to share results with your doctor.', 
-        icon: FileKey, 
-        color: colors.success 
+    {
+        title: 'Disable Training Reminder',
+        desc: 'Stop reminders on this device.',
+        icon: Bell,
+        color: colors.textSecondary
     },
-    { 
-        title: 'Export My Data', 
-        desc: 'Download all your results in a file.', 
-        icon: Download, 
-        color: colors.textSecondary 
-    },
-    { 
+    {
         title: 'Permanent Data Erasure', 
-        desc: 'Permanently delete all your data. This cannot be undone.', 
+        desc: 'Delete your CogniScan progress from this device and your account.',
         icon: Trash2, 
         color: colors.error 
     },
@@ -64,24 +60,8 @@ const PrivacyCenterScreen = ({ navigation }) => {
             <ShieldCheck size={32} color={colors.success} />
             <Text style={[Typography.h1, { color: colors.text, marginTop: 16 }]}>PRIVACY{'\n'}SETTINGS</Text>
             <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 8 }}>
-                Your data is protected and fully under your control.
+                Progress syncs to your signed-in CogniScan account.
             </Text>
-        </View>
-
-        {/* Biometric Toggle */}
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-            <View style={[styles.iconBox, { backgroundColor: colors.primary + '10' }]}>
-                <Fingerprint size={22} color={colors.primary} />
-            </View>
-            <View style={{ flex: 1, marginLeft: 16 }}>
-                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>Biometric Re-Auth</Text>
-                <Text style={{ color: colors.textSecondary, fontSize: 11, marginTop: 2 }}>Require FaceID for sensitive reports</Text>
-            </View>
-            <Switch 
-                value={biometrics} 
-                onValueChange={toggleBiometrics}
-                trackColor={{ false: colors.border, true: colors.primary }}
-            />
         </View>
 
         {/* Data Access Logs */}
@@ -107,25 +87,28 @@ const PrivacyCenterScreen = ({ navigation }) => {
         <View style={styles.section}>
             <Text style={[Typography.caption, { color: colors.textDisabled, marginBottom: 12 }]}>YOUR DATA CONTROLS</Text>
             {menuItems.map((item, i) => (
-                <TouchableOpacity key={i} style={[styles.menuItem, { borderBottomColor: colors.border }]}
+                <TouchableOpacity key={i} disabled={busy} style={[styles.menuItem, { borderBottomColor: colors.border }]}
                     onPress={() => {
                         if (item.title === 'Permanent Data Erasure') {
-                            Alert.alert('Delete All Data?', 'This will permanently erase all your data. This cannot be undone.', [
-                                { text: 'Cancel', style: 'cancel' },
-                                { text: 'Delete', style: 'destructive', onPress: () => {
-                                    persist({ ...data, sessions: [], gameHistory: [], assessmentCompleted: false, questionnaireCompleted: false });
-                                    logSecurityEvent('DATA_ERASED', { method: 'user_request' });
-                                    Alert.alert('Done', 'All your data has been erased.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
-                                }}
+                            Alert.alert('Erase CogniScan progress?', 'This removes your progress. Your login remains available.', [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Erase', style: 'destructive', onPress: () => run(async () => {
+                                await eraseProgress();
+                                navigation.reset({ index: 0, routes: [{ name: 'Splash' }] });
+                              }) },
                             ]);
-                        } else if (item.title === 'Export My Data') {
-                            Alert.alert('Export Ready', 'Go to your Profile and tap "Download My Report" to save a full copy of your data.');
-                        } else if (item.title === 'Authorized Caregivers') {
-                            navigation.navigate('CaregiverDashboard');
-                        } else if (item.title === 'Doctor Access') {
-                            navigation.navigate('ClinicalReport');
+                        } else if (item.title === 'Enable Training Reminder') {
+                            run(async () => {
+                              await registerTrainingReminder(data.user.uid);
+                              Alert.alert('Reminder enabled', 'You will receive a daily training reminder on this device.');
+                            });
+                        } else if (item.title === 'Disable Training Reminder') {
+                            run(async () => {
+                              await removeReminderRegistration(data.user.uid);
+                              Alert.alert('Reminder disabled');
+                            });
                         } else {
-                            Alert.alert(item.title, 'Your data is stored only on this device. We never share it without your permission. All data is protected.');
+                            Alert.alert(item.title, 'Your progress is linked to your own CogniScan account. The mobile app keeps an encrypted device copy for recovery when offline.');
                         }
                     }}
                 >

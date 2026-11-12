@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -13,7 +14,7 @@ const SHAPES = [
     { id: 5, Icon: Hexagon, color: '#9B7BFF' },
 ];
 
-const VisualMemoryScreen = ({ navigation }) => {
+const VisualMemoryScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { saveAssessmentScore } = useData();
   const [phase, setPhase] = useState('memorize'); // memorize, recall, result
@@ -36,7 +37,7 @@ const VisualMemoryScreen = ({ navigation }) => {
 
   const handleSelect = (shape) => {
     const isCorrect = shape.id === target.id;
-    saveAssessmentScore('visualMemory', isCorrect ? 100 : 0);
+    saveAssessmentScore('visualMemory', isCorrect ? 100 : 0, { attemptId: route.params?.attemptId });
     setPhase('result');
   };
 
@@ -83,7 +84,7 @@ const VisualMemoryScreen = ({ navigation }) => {
       <View style={styles.content}>
         <Eye size={64} color={colors.success} />
         <Text style={[Typography.h1, { color: colors.text, marginTop: 20 }]}>VISUAL MEMORY DONE</Text>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.navigate('TestHub', { ...route.params, completedTest: 'visualMemory' })}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.goBack()}>
           <Text style={{ color: '#FFF', fontWeight: '900' }}>CONTINUE</Text>
           <ChevronRight size={20} color="#FFF" />
         </TouchableOpacity>
