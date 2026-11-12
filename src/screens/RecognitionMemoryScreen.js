@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -20,7 +21,7 @@ const shufflePool = () => {
   };
 };
 
-const RecognitionMemoryScreen = ({ navigation }) => {
+const RecognitionMemoryScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { saveAssessmentScore } = useData();
   const [phase, setPhase] = useState('memorize'); // memorize, test, result
@@ -52,14 +53,12 @@ const RecognitionMemoryScreen = ({ navigation }) => {
     const word = testWords[currentIndex];
     const shouldHaveSeen = TARGETS.includes(word);
     
-    if (sawIt === shouldHaveSeen) {
-        setScore(s => s + 10);
-    }
-
+    const finalScore = score + (sawIt === shouldHaveSeen ? 10 : 0);
+    setScore(finalScore);
     if (currentIndex < testWords.length - 1) {
         setCurrentIndex(currentIndex + 1);
     } else {
-        saveAssessmentScore('recognitionMemory', Math.round((score / 10) * 100));
+        saveAssessmentScore('recognitionMemory', finalScore, { attemptId: route.params?.attemptId });
         setPhase('result');
     }
   };
@@ -108,7 +107,7 @@ const RecognitionMemoryScreen = ({ navigation }) => {
       <View style={styles.center}>
         <ShieldCheck size={64} color={colors.success} />
         <Text style={[Typography.h1, { color: colors.text, marginTop: 20 }]}>RECOGNITION DONE</Text>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.navigate('TestHub', { ...route.params, completedTest: 'recognitionMemory' })}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.goBack()}>
           <Text style={{ color: '#FFF', fontWeight: '900' }}>CONTINUE</Text>
           <ChevronRight size={20} color="#FFF" />
         </TouchableOpacity>

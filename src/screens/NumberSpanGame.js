@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import React, { useState, useEffect, useRef } from 'react';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -9,7 +10,7 @@ const { width } = Dimensions.get('window');
 
 const NumberSpanGame = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const { saveGameResult, saveAssessmentScore, data, updateDifficulty, completeAssignedGame, logMetaCognitive } = useData();
+  const { saveGameResult, saveAssessmentScore, data, updateDifficulty, logMetaCognitive } = useData();
   
   const isMandatoryFlow = route.params?.isMandatoryFlow;
   const isTraining = route.params?.isMandatory; // From DailyTrainingScreen
@@ -33,13 +34,19 @@ const NumberSpanGame = ({ navigation, route }) => {
   const [timer, setTimer] = useState(0);
   const [entryTimes, setEntryTimes] = useState([]);
   const [lastDigitTime, setLastDigitTime] = useState(0);
+  const timers = useRef({});
+  useEffect(() => () => {
+    clearInterval(timers.current.show);
+    clearTimeout(timers.current.reveal);
+    clearTimeout(timers.current.next);
+  }, []);
 
   const generateSequence = (len) => {
     return Array.from({ length: len }, () => Math.floor(Math.random() * 10));
   };
 
-  const startRound = () => {
-    const seq = generateSequence(spanLength);
+  const startRound = (length = spanLength) => {
+    const seq = generateSequence(length);
     setSequence(seq);
     setUserInput([]);
     setShowingSeq(true);
@@ -47,12 +54,12 @@ const NumberSpanGame = ({ navigation, route }) => {
     
     let i = 0;
     const intervalTime = Math.max(500, 1000 - (currentDiff * 50));
-    const showInterval = setInterval(() => {
+    timers.current.show = setInterval(() => {
       setCurrentShow(i);
       i++;
       if (i >= seq.length) {
-        clearInterval(showInterval);
-        setTimeout(() => {
+        clearInterval(timers.current.show);
+        timers.current.reveal = setTimeout(() => {
           setShowingSeq(false);
           setCurrentShow(-1);
           setLastDigitTime(Date.now());
@@ -70,7 +77,7 @@ const NumberSpanGame = ({ navigation, route }) => {
   }, [phase]);
 
   const handleDigitTap = (digit) => {
-    if (showingSeq) return;
+    if (showingSeq || !sequence.length || userInput.length >= sequence.length) return;
     const now = Date.now();
     setEntryTimes(prev => [...prev, now - lastDigitTime]);
     setLastDigitTime(now);
@@ -93,18 +100,17 @@ const NumberSpanGame = ({ navigation, route }) => {
 
       const nextRnd = newRounds;
       if (nextRnd >= 8) {
-        const finalScore = Math.round((maxSpan / 10) * 100);
+        const finalScore = Math.round(((score + Number(isCorrect)) / 8) * 100);
         
         // Feed the Engines
-        updateDifficulty(gameId, score / 8);
+        if (!isMandatoryFlow) updateDifficulty(gameId, finalScore / 100);
         const avgLatency = entryTimes.reduce((a, b) => a + b, 0) / (entryTimes.length || 1);
         logMetaCognitive({ hesitation: avgLatency });
         
         if (isMandatoryFlow) {
-          saveAssessmentScore(testId, finalScore, { maxSpan });
+          saveAssessmentScore(testId, finalScore, { attemptId: route.params?.attemptId, maxSpan });
         } else {
           saveGameResult({ gameId: 'numberSpan', category: 'memory', score: finalScore, duration: timer });
-          if (isTraining) completeAssignedGame(gameId);
         }
         setPhase('results');
       } else {
@@ -112,7 +118,7 @@ const NumberSpanGame = ({ navigation, route }) => {
           setIsReverse(true);
           setSpanLength(initialSpan);
         }
-        setTimeout(startRound, 1000);
+        timers.current.next = setTimeout(() => startRound(newRounds === 4 ? initialSpan : spanLength + Number(isCorrect)), 1000);
       }
     }
   };
@@ -160,7 +166,7 @@ const NumberSpanGame = ({ navigation, route }) => {
           </View>
           <TouchableOpacity 
             style={[styles.btn, { backgroundColor: colors.primary, width: 240 }]} 
-            onPress={() => isMandatoryFlow ? navigation.navigate('TestHub', { ...route.params, completedTest: testId }) : (isTraining ? navigation.navigate('DailyTraining') : navigation.goBack())}
+            onPress={() => isMandatoryFlow ? navigation.goBack() : (isTraining ? navigation.navigate('DailyTraining') : navigation.goBack())}
           >
             <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16 }}>{isMandatoryFlow || isTraining ? 'CONTINUE PROTOCOL' : 'DONE'}</Text>
           </TouchableOpacity>

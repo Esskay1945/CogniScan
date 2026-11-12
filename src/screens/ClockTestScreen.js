@@ -1,8 +1,6 @@
 import React, { useState, useRef, useMemo } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity,
-  Dimensions, ScrollView, KeyboardAvoidingView, Platform,
-} from 'react-native';
+import { View, StyleSheet, Dimensions, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import Svg, { Line, Circle as SvgCircle } from 'react-native-svg';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
@@ -258,12 +256,8 @@ const ClockTestScreen = ({ navigation, route }) => {
   /* ──── UI ──── */
   const onFinish = () => {
     const score = totalScore();
-    saveAssessmentScore('clock', score);
-    navigation.navigate('TestHub', {
-      ...route.params,
-      clockScore: score,
-      completedTest: 'clock',
-    });
+    saveAssessmentScore('clock', score, { attemptId: route.params?.attemptId });
+    navigation.goBack();
   };
   return (
     <KeyboardAvoidingView
@@ -446,7 +440,7 @@ const ClockTestScreen = ({ navigation, route }) => {
               style={[styles.actionBtn, { backgroundColor: colors.primary, marginTop: 24 }]}
               onPress={onFinish}
             >
-              <Text style={styles.btnText}>UPLOAD DATA</Text>
+              <Text style={styles.btnText}>SAVE SCORE</Text>
             </TouchableOpacity>
           </View>
         )}

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, Animated, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, StyleSheet, TextInput, Animated, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
@@ -9,11 +10,6 @@ const DelayedRecallScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { saveAssessmentScore } = useData();
   const words = route.params?.words || [];
-  const elapsed = route.params?.elapsed || 0;
-  const speechScore = route.params?.speechScore || 70;
-  const reactionAvg = route.params?.reactionAvg || null;
-  const patternScore = route.params?.patternScore != null ? route.params.patternScore : null;
-  const clockScore = route.params?.clockScore || null;
   const [inputs, setInputs] = useState(['', '', '']);
   const [submitted, setSubmitted] = useState(false);
   const [results, setResults] = useState([]);
@@ -44,22 +40,6 @@ const DelayedRecallScreen = ({ navigation, route }) => {
         }
       }
       
-      // Check typo tolerance (Levenshtein distance <= 1)
-      for (let j = 0; j < normalizedWords.length; j++) {
-        if (!used.has(j) && levenshtein(userWord, normalizedWords[j]) <= 1) {
-          used.add(j);
-          return 'correct';
-        }
-      }
-      
-      // Check close match (distance <= 2)
-      for (let j = 0; j < normalizedWords.length; j++) {
-        if (!used.has(j) && levenshtein(userWord, normalizedWords[j]) <= 2) {
-          used.add(j);
-          return 'close';
-        }
-      }
-      
       return 'wrong';
     });
     
@@ -68,38 +48,12 @@ const DelayedRecallScreen = ({ navigation, route }) => {
     Animated.timing(fadeAnim, { toValue: 1, duration: 500, useNativeDriver: true }).start();
   };
 
-  // Levenshtein distance
-  const levenshtein = (a, b) => {
-    const m = a.length, n = b.length;
-    const dp = Array.from({ length: m + 1 }, () => Array(n + 1).fill(0));
-    for (let i = 0; i <= m; i++) dp[i][0] = i;
-    for (let j = 0; j <= n; j++) dp[0][j] = j;
-    for (let i = 1; i <= m; i++) {
-      for (let j = 1; j <= n; j++) {
-        dp[i][j] = Math.min(
-          dp[i - 1][j] + 1,
-          dp[i][j - 1] + 1,
-          dp[i - 1][j - 1] + (a[i - 1] !== b[j - 1] ? 1 : 0)
-        );
-      }
-    }
-    return dp[m][n];
-  };
-
   const correctCount = results.filter(r => r === 'correct').length;
-  const closeCount = results.filter(r => r === 'close').length;
+  const closeCount = 0;
 
   const proceed = () => {
-    saveAssessmentScore('recall', correctCount);
-    navigation.navigate('Results', {
-      ...route.params,
-      recallScore: correctCount,
-      recallClose: closeCount,
-      recallTotal: words.length,
-      recallResults: results,
-      words,
-      elapsed,
-    });
+    saveAssessmentScore('recall', correctCount, { attemptId: route.params?.attemptId });
+    navigation.goBack();
   };
 
   const getColor = (r) => {

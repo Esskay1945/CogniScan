@@ -18,7 +18,7 @@ const ConsentScreen = ({ navigation }) => {
   const [flags, setFlags] = useState({
     passiveTracking: false,
     caregiverSharing: false,
-    researchData: true,
+    researchData: false,
   });
 
   const handleFinish = () => {

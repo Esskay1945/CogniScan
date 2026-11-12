@@ -59,7 +59,7 @@ const MentalHealthHistoryScreen = ({ navigation }) => {
 
         <TouchableOpacity
           style={[styles.optionBtn, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1.5 }]}
-          onPress={() => navigation.navigate('SymptomFlow')}
+          onPress={() => navigation.navigate('SymptomFlow', { stage: 'background' })}
           activeOpacity={0.85}
         >
           <ShieldCheck size={20} color={colors.success} />

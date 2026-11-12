@@ -10,7 +10,7 @@ import { useSpeech } from '../hooks/useSpeech';
 
 const Dashboard = ({ navigation }) => {
   const { colors } = useTheme();
-  const { data, getLatestSession, getDrift, getTodayStreakProgress, isReConsentNeeded } = useData();
+  const { data, getLatestSession, getDrift, getCurrentStreak, getTodayStreakProgress, isReConsentNeeded } = useData();
   const { prefs, adaptiveStyles, clutterFree, oneTaskMode } = useAdaptiveUI();
   const [showReConsent, setShowReConsent] = useState(false);
   const { speak } = useSpeech();
@@ -85,7 +85,7 @@ const Dashboard = ({ navigation }) => {
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '600' }}>
-                {data.streak > 0 ? `🔥 ${data.streak} day streak` : 'Welcome back'}
+                {data.streak > 0 ? `🔥 ${getCurrentStreak()} day streak` : 'Welcome back'}
               </Text>
               {!clutterFree && (
                 <View style={[styles.xpBadge, { backgroundColor: colors.accent + '20' }]}>
@@ -149,7 +149,7 @@ const Dashboard = ({ navigation }) => {
             <Text style={{ color: colors.textSecondary, fontSize: 13, marginTop: 6, textAlign: 'center', lineHeight: 20 }}>
               Take a quick brain check to see how your memory, attention, and thinking are doing.
             </Text>
-            <TouchableOpacity style={[styles.startBtn, { backgroundColor: colors.primary }]} onPress={() => navigation.navigate('ReadinessCheck', { game: { id: 'TestHub' } })} activeOpacity={0.85}>
+            <TouchableOpacity style={[styles.startBtn, { backgroundColor: colors.primary }]} onPress={() => navigation.navigate('EntryQuestion')} activeOpacity={0.85}>
               <Text style={{ color: '#FFF', fontWeight: '800', fontSize: 14, letterSpacing: 1 }}>START CHECK-UP</Text>
             </TouchableOpacity>
           </View>
@@ -188,7 +188,7 @@ const Dashboard = ({ navigation }) => {
         )}
 
         <View style={styles.actionsRow}>
-          <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.primary }]} onPress={() => navigation.navigate('ReadinessCheck', { game: { id: 'TestHub' } })} activeOpacity={0.85}>
+          <TouchableOpacity style={[styles.actionCard, { backgroundColor: colors.primary }]} onPress={() => navigation.navigate('EntryQuestion')} activeOpacity={0.85}>
             <RotateCcw size={20} color="#FFF" />
             <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 13, marginTop: 6 }}>Retake Tests</Text>
           </TouchableOpacity>

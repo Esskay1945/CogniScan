@@ -11,7 +11,7 @@ const ICONS = ['🧠', '⚡', '🎯', '🔮', '💎', '🌟', '🎭', '🔥'];
 
 const MemoryMatchGame = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const { data, saveGameResult, completeAssignedGame, addXP, updateDifficulty, logMetaCognitive } = useData();
+  const { data, saveGameResult, updateDifficulty, logMetaCognitive } = useData();
   const isMandatory = route.params?.isMandatory;
   const gameId = 'MemoryMatch';
   const difficulty = data.difficulties?.[gameId] || 1;
@@ -66,8 +66,6 @@ const MemoryMatchGame = ({ navigation, route }) => {
         if (newMatched.length === cards.length) {
           const score = Math.max(0, 100 - (moves * 2) - Math.floor(timer / 5));
           saveGameResult({ gameId: 'memoryMatch', category: 'memory', score, duration: timer });
-          if (isMandatory) completeAssignedGame(gameId);
-          addXP(30, 'memory');
 
           // adaptation
           updateDifficulty(gameId, score / 100);

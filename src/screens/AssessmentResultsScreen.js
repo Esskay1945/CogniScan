@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -13,60 +14,14 @@ const { width } = Dimensions.get('window');
 
 const AssessmentResultsScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const { 
-    data, 
-    getAssessmentProgress, 
-    calculateSignalReliability, 
-    getActionPathway, 
-    calculateWhatIfSimulation,
-    verifyAccess,
-    getDomainExplanation,
-    markAssessmentCompleted
-  } = useData();
-  
-  const sessionSaved = React.useRef(false);
-  
-  React.useEffect(() => {
-    if (!sessionSaved.current) {
-      markAssessmentCompleted();
-      sessionSaved.current = true;
-    }
-  }, []);
-  
-  const assessment = data.riskAssessment;
-  const scores = data.assessmentScores || {};
+  const { data, calculateSignalReliability, getDomainExplanation } = useData();
+  const attempt = data.assessmentAttempt;
+  const summary = attempt?.summary;
   const reliability = calculateSignalReliability();
-  const pathway = getActionPathway();
-  const whatIf = calculateWhatIfSimulation();
+  if (!summary) return null;
 
-  if (!assessment) return null;
-
-  const handleExport = () => {
-    const access = verifyAccess(3, 'EXPORT_REPORT');
-    if (access === 'RE_AUTH_REQUIRED') {
-        navigation.navigate('IdentityReAuth', { 
-            target: 'CLINICIAN_REPORT',
-            onSuccess: () => alert('Generating Structured Clinician Report...')
-        });
-    } else if (access === true) {
-        alert('Generating Structured Clinician Report...');
-    } else {
-        alert('Access Denied: Insufficient Permissions');
-    }
-  };
-
-  const handleFinish = () => {
-    navigation.navigate('GameAssignment');
-  };
-
-  const getDomainScore = (domain) => {
-    const tests = assessment.mandatoryTests.filter(t => t.domain === domain);
-    if (tests.length === 0) return null;
-    const testScores = tests.map(t => scores[t.id]?.score).filter(s => s != null);
-    if (testScores.length === 0) return 'PENDING';
-    const avg = Math.round(testScores.reduce((a, b) => a + b, 0) / testScores.length);
-    return avg;
-  };
+  const handleFinish = () => navigation.replace('GameAssignment');
+  const getDomainScore = domain => summary.domainScores[domain] ?? null;
 
   const domains = [
     { id: 'memory', label: 'Memory', icon: Brain },
@@ -81,16 +36,19 @@ const AssessmentResultsScreen = ({ navigation }) => {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         
+        <Text style={[Typography.h1, { color: colors.text, marginBottom: 12 }]}>Assessment complete</Text>
+        <Text style={[Typography.h2, { color: colors.primary, marginBottom: 12 }]}>Overall task score {summary.overall}%</Text>
+        <Text style={{ color: colors.textSecondary, marginBottom: 20 }}>Scores summarize performance on these activities.</Text>
         {/* Module 1/2: Signal Confidence & Confounders */}
         <View style={[styles.confidenceCard, { backgroundColor: colors.surface, borderColor: reliability.level === 'High' ? colors.success : colors.warning }]}>
             <View style={styles.cardHeader}>
                 <ShieldCheck size={20} color={reliability.level === 'High' ? colors.success : colors.warning} />
-                <Text style={[Typography.caption, { color: reliability.level === 'High' ? colors.success : colors.warning, marginLeft: 8 }]}>RESULT RELIABILITY</Text>
+                <Text style={[Typography.caption, { color: reliability.level === 'High' ? colors.success : colors.warning, marginLeft: 8 }]}>SESSION CONDITIONS</Text>
             </View>
             <View style={styles.reliabilityRow}>
                 <View>
                     <Text style={[Typography.h1, { color: colors.text }]}>{reliability.level.toUpperCase()}</Text>
-                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>Confidence Index: {reliability.score}%</Text>
+                    <Text style={{ color: colors.textSecondary, fontSize: 11 }}>Conditions score: {reliability.score}%</Text>
                 </View>
                 <BarChart3 size={40} color={colors.primary + '30'} />
             </View>
@@ -134,46 +92,6 @@ const AssessmentResultsScreen = ({ navigation }) => {
                     </View>
                 );
             })}
-        </View>
-
-        {/* Module 5: Action Pathway */}
-        <View style={styles.section}>
-            <Text style={[Typography.caption, { color: colors.textDisabled, marginBottom: 12 }]}>WHAT TO DO NEXT</Text>
-            <View style={[styles.pathwayCard, { backgroundColor: colors.surface, borderColor: pathway.color }]}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                    <Target size={20} color={pathway.color} />
-                    <Text style={{ color: pathway.color, fontWeight: '900', fontSize: 13, marginLeft: 12 }}>{pathway.title}</Text>
-                </View>
-                {pathway.steps.map((step, i) => (
-                    <View key={i} style={styles.pathwayStep}>
-                        <View style={[styles.stepDot, { backgroundColor: pathway.color }]} />
-                        <Text style={{ color: colors.text, fontSize: 13, marginLeft: 12 }}>{step}</Text>
-                    </View>
-                ))}
-            </View>
-        </View>
-
-        {/* Module 6: What-If Brain Simulator */}
-        <View style={styles.section}>
-            <Text style={[Typography.caption, { color: colors.textDisabled, marginBottom: 12 }]}>MODULE 6: BRAIN TRAJECTORY (SIMULATED)</Text>
-            <View style={[styles.simCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-                <View style={styles.simRow}>
-                    <View style={styles.simCol}>
-                        <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '800' }}>IF ACTIVE</Text>
-                        <Text style={{ color: colors.success, fontSize: 22, fontWeight: '900' }}>+{Math.round(whatIf.projectionAction)}%</Text>
-                        <ArrowUpRight size={16} color={colors.success} />
-                    </View>
-                    <View style={[styles.simDivider, { backgroundColor: colors.border }]} />
-                    <View style={styles.simCol}>
-                        <Text style={{ color: colors.textSecondary, fontSize: 10, fontWeight: '800' }}>NO ACTION</Text>
-                        <Text style={{ color: colors.error, fontSize: 22, fontWeight: '900' }}>-{Math.round(whatIf.projectionNone)}%</Text>
-                        <ArrowDownRight size={16} color={colors.error} />
-                    </View>
-                </View>
-                <Text style={{ color: colors.textSecondary, fontSize: 11, textAlign: 'center', marginTop: 16, fontStyle: 'italic' }}>
-                    "{whatIf.message}"
-                </Text>
-            </View>
         </View>
 
         {/* Module 4: Meta-Cognition (Awareness) */}
@@ -239,13 +157,7 @@ const AssessmentResultsScreen = ({ navigation }) => {
 
       <View style={[styles.bottomBar, { backgroundColor: colors.background }]}>
         <View style={styles.btnRow}>
-            <TouchableOpacity 
-                style={[styles.exportBtn, { borderColor: colors.primary, borderWidth: 1.5 }]} 
-                onPress={handleExport}
-            >
-                <ShieldCheck size={20} color={colors.primary} />
-                <Text style={{ color: colors.primary, fontWeight: '900', fontSize: 13, marginLeft: 10 }}>EXPORT REPORT</Text>
-            </TouchableOpacity>
+
             
             <TouchableOpacity style={[styles.finishBtn, { backgroundColor: colors.primary }]} onPress={handleFinish}>
                 <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 14, letterSpacing: 1 }}>PROCEED</Text>

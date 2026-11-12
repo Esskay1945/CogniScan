@@ -1,55 +1,39 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
 import { ChevronRight, Check, X, Shield, ChevronLeft } from 'lucide-react-native';
 
 const SYMPTOMS = [
-  { id: 'memory', text: 'Do you forget things often?', domain: 'memory' },
-  { id: 'attention', text: 'Do you lose focus easily?', domain: 'attention' },
-  { id: 'visuospatial', text: 'Do you misjudge directions or distances?', domain: 'visuospatial' },
-  { id: 'executive', text: 'Do you struggle with planning?', domain: 'executive' },
-  { id: 'language', text: 'Do you struggle understanding instructions?', domain: 'language' },
-  { id: 'mood_anxiety', text: 'Do you feel anxious frequently?', domain: 'mood' },
-  { id: 'mood_depression', text: 'Do you feel low or unmotivated?', domain: 'mood' },
-  { id: 'processing', text: 'Do you feel mentally slow?', domain: 'executive' },
+  { id: 'memory', text: 'Do you currently forget things often?', domain: 'memory' },
+  { id: 'attention', text: 'Do you currently lose focus easily?', domain: 'attention' },
+  { id: 'visuospatial', text: 'Do you currently misjudge directions or distances?', domain: 'visuospatial' },
+  { id: 'executive', text: 'Do you currently struggle with planning?', domain: 'executive' },
+  { id: 'language', text: 'Do you currently struggle understanding instructions?', domain: 'language' },
+  { id: 'mood_anxiety', text: 'Do you currently feel anxious frequently?', domain: 'mood' },
+  { id: 'mood_depression', text: 'Do you currently feel low or unmotivated?', domain: 'mood' },
+  { id: 'motor', text: 'Are hand movements or coordination harder for you right now?', domain: 'motor' },
+  { id: 'processing', text: 'Do you currently feel mentally slow?', domain: 'executive' },
 ];
 
-const DOMAIN_TESTS = {
-  memory: [
-    { id: 'wordRecall', label: 'Word Recall', route: 'WordPresentation' },
-    { id: 'pairedAssociate', label: 'Paired Associate Learning', route: 'PairedAssociate' },
-  ],
-  attention: [
-    { id: 'digitSpan', label: 'Digit Span', route: 'NumberSpan' },
-    { id: 'goNoGo', label: 'Continuous Attention', route: 'GoNoGo' },
-  ],
-  executive: [
-    { id: 'stroop', label: 'Stroop Test', route: 'StroopChallenge' },
-    { id: 'towerSort', label: 'Problem Solving', route: 'TowerSort' },
-  ],
-  language: [
-    { id: 'objectNaming', label: 'Object Naming', route: 'ObjectNaming' },
-  ],
-  visuospatial: [
-    { id: 'clockDraw', label: 'Clock Drawing', route: 'ClockTest' },
-  ],
-  mood: [
-    // Mood symptoms map to memory/attention tests usually as they affect those
-    { id: 'wordRecall', label: 'Word Recall', route: 'WordPresentation' },
-    { id: 'goNoGo', label: 'Continuous Attention', route: 'GoNoGo' },
-  ],
-};
+const BACKGROUND = [
+  { id: 'routine', text: 'Have changes in your routine recently affected your concentration?' },
+  { id: 'rest', text: 'Has poor sleep recently affected your day?' },
+  { id: 'tasks', text: 'Have everyday tasks recently needed more effort?' },
+];
 
-const SymptomFlowScreen = ({ navigation }) => {
+const SymptomFlowScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const { saveRiskAssessment } = useData();
+  const { startAssessment } = useData();
+  const backgroundStage = route.params?.stage === 'background';
+  const questions = backgroundStage ? BACKGROUND : SYMPTOMS;
   const [currentQ, setCurrentQ] = useState(0);
   const [answers, setAnswers] = useState({}); // { symptomId: boolean }
 
-  const question = SYMPTOMS[currentQ];
-  const totalQuestions = SYMPTOMS.length;
+  const question = questions[currentQ];
+  const totalQuestions = questions.length;
 
   const handleAnswer = (isYes) => {
     const newAnswers = { ...answers, [question.id]: isYes };
@@ -63,48 +47,21 @@ const SymptomFlowScreen = ({ navigation }) => {
   };
 
   const finishSymptomFlow = (finalAnswers) => {
-    const domainYesCounts = { memory: 0, attention: 0, executive: 0, language: 0, visuospatial: 0, motor: 0, mood: 0 };
-    
-    SYMPTOMS.forEach(s => {
-      if (finalAnswers[s.id]) {
-        domainYesCounts[s.domain]++;
-      }
-    });
-
-    const domains = {};
-    const mandatoryTests = [];
-
-    // Map YES answers to risk
-    Object.keys(domainYesCounts).forEach(domain => {
-       const yes = domainYesCounts[domain];
-       let risk = 'low';
-       // For simple symptom flow, even 1 YES makes it moderate
-       if (yes >= 2) risk = 'high';
-       else if (yes === 1) risk = 'moderate';
-       
-       domains[domain === 'mood' ? 'memory' : domain] = risk; // Mood impacts memory/attention
-
-       if (risk !== 'low') {
-         const tests = DOMAIN_TESTS[domain] || [];
-         tests.forEach(t => {
-           const existing = mandatoryTests.find(m => m.id === t.id);
-           if (!existing) {
-             mandatoryTests.push({ ...t, domain, risk });
-           } else if (risk === 'high' && existing.risk !== 'high') {
-             existing.risk = 'high';
-           }
-         });
-       }
-    });
-
-    // Ensure at least some tests are assigned if everything was "No" (Baseline)
-    if (mandatoryTests.length === 0) {
-      mandatoryTests.push({ id: 'wordRecall', label: 'Word Recall', route: 'WordPresentation', domain: 'memory', risk: 'low' });
-      mandatoryTests.push({ id: 'reactionSpeed', label: 'Reaction Speed', route: 'ReactionTest', domain: 'motor', risk: 'low' });
+    if (backgroundStage) {
+      navigation.push('SymptomFlow', { historyAnswers: finalAnswers, hasHistory: !!route.params?.hasHistory });
+      return;
     }
-
-    const assessment = { domains, mandatoryTests, domainYesCounts };
-    saveRiskAssessment(assessment);
+    const current = {};
+    SYMPTOMS.forEach(({ id, domain }) => {
+      if (finalAnswers[id] && domain !== 'mood') current[domain] = (current[domain] || 0) + 1;
+    });
+    if (finalAnswers.mood_anxiety || finalAnswers.mood_depression) current.attention = (current.attention || 0) + 1;
+    const assessment = startAssessment({
+      hasHistory: route.params?.hasHistory,
+      background: route.params?.background,
+      current,
+      answers: { background: route.params?.historyAnswers || {}, current: finalAnswers },
+    });
     navigation.navigate('RiskAssessment', { assessment });
   };
 
@@ -118,7 +75,7 @@ const SymptomFlowScreen = ({ navigation }) => {
             <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
           <View style={[styles.stepBadge, { backgroundColor: colors.accent + '15' }]}>
-            <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>STEP 2 OF 3 · SYMPTOM FLOW</Text>
+            <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>{backgroundStage ? 'BACKGROUND QUESTIONNAIRE' : 'CURRENT CONDITION'}</Text>
           </View>
         </View>
 
@@ -134,7 +91,7 @@ const SymptomFlowScreen = ({ navigation }) => {
 
         <View style={[styles.tag, { backgroundColor: colors.primary + '12', borderColor: colors.primary + '30' }]}>
             <Shield size={16} color={colors.primary} />
-            <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 12, marginLeft: 8 }}>GENERAL SCREENING</Text>
+            <Text style={{ color: colors.primary, fontWeight: '800', fontSize: 12, marginLeft: 8 }}>{backgroundStage ? 'RECENT BACKGROUND' : 'HOW YOU FEEL NOW'}</Text>
         </View>
 
         <View style={[styles.questionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>

@@ -19,22 +19,19 @@ const FONT_OPTIONS = [
 const FontSizeScreen = ({ navigation, route }) => {
   const { colors, fontScale, updateFontScale, scaledFont } = useTheme();
   const { data, persist } = useData();
-  const [selected, setSelected] = useState(fontScale);
+  const [selected, setSelected] = useState(data.adaptivePrefs?.fontSizeScale ?? fontScale);
 
   // Detect if opened from onboarding flow vs Profile
   const fromOnboarding = route.params?.fromOnboarding || false;
 
   const handleContinue = async () => {
-    await updateFontScale(selected);
-    // Also save to DataContext so useAdaptiveUI picks it up
-    persist({ ...data, adaptivePrefs: { ...data.adaptivePrefs, fontSizeScale: selected } });
-    if (fromOnboarding) {
-      // Continue to Splash which will route to EntryQuestion
-      navigation.replace('Splash');
-    } else {
-      // Opened from Profile: go back
-      navigation.goBack();
-    }
+    persist(previous => ({
+      ...previous,
+      adaptivePrefs: { ...previous.adaptivePrefs, fontSizeScale: selected },
+      accessibilityCompleted: previous.accessibilityCompleted || fromOnboarding,
+    }));
+    if (fromOnboarding) navigation.replace('EntryQuestion');
+    else navigation.goBack();
   };
 
   const sampleSize = (base) => Math.round(base * selected);

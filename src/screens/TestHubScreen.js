@@ -1,16 +1,17 @@
-import React, { useMemo, useRef, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { Typography, Colors } from '../theme';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Zap, Brain, Eye, Clock, Mic, ChevronRight, Check, Shield, Activity, MessageSquare, Move } from 'lucide-react-native';
+import { useAdaptiveUI } from '../hooks/useAdaptiveUI';
 import { useSpeech } from '../hooks/useSpeech';
 
 const TEST_METADATA = {
   reaction: { icon: Zap, color: '#FF3D00', route: 'ReactionTest', title: 'Reaction Speed', desc: 'Tap targets as fast as possible', tutorial: 'Tap targets as they appear. Measures processing speed.' },
   pattern: { icon: Eye, color: '#00F0FF', route: 'PatternTest', title: 'Pattern Memory', desc: 'Reproduce grid patterns', tutorial: 'Remember and tap the cells that were highlighted.' },
   clock: { icon: Clock, color: '#00E676', route: 'ClockTest', title: 'Clock Drawing', desc: 'Spatial & time setting', tutorial: 'Place numbers and set hands on a clock face.' },
-  speech: { icon: Mic, color: '#9B7BFF', route: 'SpeechTest', title: 'Speech Rhythm', desc: 'Vocal analysis', tutorial: 'Read phrases aloud to analyze speech patterns.' },
   recall: { icon: Brain, color: '#0066FF', route: 'DelayedRecall', title: 'Delayed Recall', desc: 'Memory retention', tutorial: 'Recall the 3 words from the beginning.' },
   
   // Mandatory tests from domain mapping
@@ -37,87 +38,48 @@ const TEST_METADATA = {
   symbolMatch: { icon: Zap, color: '#FFD600', route: 'DigitSymbol', title: 'Symbol Matching', desc: 'Processing speed', tutorial: 'Match symbols to digits quickly.' },
 };
 
-const TestHubScreen = ({ navigation, route }) => {
+const TestHubScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const { data, getAssessmentProgress, markAssessmentCompleted } = useData();
-  const isMandatoryFlow = route.params?.isMandatoryFlow || false;
-  
-  // Get assessment details if in mandatory flow
-  const assessment = getAssessmentProgress();
-  
-  const testSequence = useMemo(() => {
-    if (isMandatoryFlow && assessment.tests.length > 0) {
-      return assessment.tests.map(t => ({
-        ...TEST_METADATA[t.id] || { id: t.id, title: t.label, desc: t.domain, icon: Activity, color: colors.primary, route: t.route, tutorial: 'Complete the assigned brain activity.' },
-        id: t.id,
-      }));
-    }
-    
-    // Default sequence — includes Word Recall as first step
-    return [
-      { id: 'wordRecall', icon: Brain, color: '#0066FF', route: 'WordPresentation', title: 'Word Memorization', desc: 'Remember 3 words', tutorial: 'You will be shown 3 words. Memorize them for later recall.' },
-      { id: 'reaction', ...TEST_METADATA.reaction },
-      { id: 'pattern', ...TEST_METADATA.pattern },
-      { id: 'clock', ...TEST_METADATA.clock },
-      { id: 'speech', ...TEST_METADATA.speech },
-      { id: 'recall', ...TEST_METADATA.recall },
-    ];
-  }, [isMandatoryFlow, assessment.tests, colors.primary]);
+  const { data, startAssessment, finishAssessment } = useData();
+  const { speak } = useSpeech();
+  const { oneTaskMode } = useAdaptiveUI();
+  const attempt = data.assessmentAttempt;
 
-  const completed = useMemo(() => {
-    const set = new Set();
-    const scores = isMandatoryFlow ? assessment.scores : {};
-    
-    const params = route.params || {};
-    
-    // Accumulate from params
-    if (params.reactionAvg != null) set.add('reaction');
-    if (params.patternScore != null) set.add('pattern');
-    if (params.clockScore != null) set.add('clock');
-    if (params.speechScore != null) set.add('speech');
-    if (params.recallScore != null) set.add('recall');
-    if (params.completedTest) set.add(params.completedTest);
-    
-    if (params._completedTests) {
-      params._completedTests.forEach(id => set.add(id));
-    }
+  useEffect(() => {
+    if (!attempt || attempt.finishedAt) startAssessment();
+  }, []);
 
-    // Accumulate from store (mandatory flow)
-    Object.keys(scores).forEach(id => set.add(id));
-    
-    return set;
-  }, [route.params, assessment.scores, isMandatoryFlow]);
+  useEffect(() => {
+    speak('Complete each activity in order. The final activity asks you to recall the three words.');
+  }, []);
 
-  const nextTest = testSequence.find(t => !completed.has(t.id));
+  if (!attempt || attempt.finishedAt) return null;
+
+  const testSequence = attempt.plan.mandatoryTests.map(test => ({
+    ...TEST_METADATA[test.id],
+    ...test,
+    title: test.label,
+    icon: TEST_METADATA[test.id]?.icon || Activity,
+    desc: test.domain,
+    color: TEST_METADATA[test.id]?.color || colors.primary,
+  }));
+  const completed = new Set(testSequence.filter(({ id }) => id === 'words' ? attempt.words : attempt.scores[id]).map(({ id }) => id));
+  const nextTest = testSequence.find(test => !completed.has(test.id));
   const allDone = !nextTest;
-  const completedList = Array.from(completed);
 
   const handleContinue = () => {
     if (allDone) {
-      if (isMandatoryFlow) {
-        navigation.navigate('AssessmentResults');
-      } else {
-        navigation.navigate('Results', { ...route.params, _completedTests: completedList });
-      }
+      finishAssessment(attempt.id);
+      navigation.replace('AssessmentResults');
       return;
     }
-
     navigation.navigate(nextTest.route, {
-      ...route.params,
-      _completedTests: completedList,
       testId: nextTest.id,
-      isMandatoryFlow
+      attemptId: attempt.id,
+      words: attempt.words,
+      isMandatoryFlow: true,
     });
   };
-
-  const { speak } = useSpeech();
-
-  useEffect(() => {
-    const msg = isMandatoryFlow 
-      ? 'These activities were chosen for you based on your answers.'
-      : 'Complete each activity one by one. Take your time, there is no rush.';
-    speak(msg);
-  }, []);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -125,16 +87,14 @@ const TestHubScreen = ({ navigation, route }) => {
         <View style={styles.header}>
           <Shield size={28} color={colors.primary} />
           <Text style={[Typography.h1, { color: colors.text, marginLeft: 12 }]}>
-            {isMandatoryFlow ? 'MANDATORY TESTS' : 'ASSESSMENT'}
+            {attempt.plan.mode === 'full' ? 'FULL ASSESSMENT' : 'RECOMMENDED ASSESSMENT'}
           </Text>
         </View>
         <Text style={{ color: colors.textSecondary, fontSize: 13, lineHeight: 20, marginBottom: 24 }}>
-          {isMandatoryFlow 
-            ? 'These activities were chosen for you based on your answers.' 
-            : 'Complete each activity one by one. Take your time — there is no rush.'}
+            Complete the activities in order. You will be asked for the three words at the end.
         </Text>
 
-        {testSequence.map((test, index) => {
+        {(oneTaskMode ? (nextTest ? [nextTest] : []) : testSequence).map((test, index) => {
           const Icon = test.icon;
           const isDone = completed.has(test.id);
           const isCurrent = nextTest?.id === test.id;
@@ -178,6 +138,7 @@ const TestHubScreen = ({ navigation, route }) => {
           );
         })}
 
+        <Text style={{ color: colors.textSecondary }}>{completed.size} of {testSequence.length} activities complete</Text>
         <View style={{ height: 120 }} />
       </ScrollView>
 

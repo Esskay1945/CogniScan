@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -30,18 +31,22 @@ const RuleSwitchGame = ({ navigation, route }) => {
   const [currentRule, setCurrentRule] = useState('color');
   const [trial, setTrial] = useState(genTrial('color'));
   const [feedback, setFeedback] = useState(null);
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
 
   const handleAnswer = (answer) => {
+    if (timer.current !== null) return;
     const correct = answer === trial.answer;
     if (correct) setScore(s => s + 1);
     setFeedback(correct ? '✓' : '✗');
-    setTimeout(() => {
+    timer.current = setTimeout(() => {
+      timer.current = null;
       setFeedback(null);
       const nextRound = round + 1;
       if (nextRound >= TOTAL) {
         const finalScore = Math.round(((score + (correct ? 1 : 0)) / TOTAL) * 100);
         if (isMandatoryFlow) {
-          saveAssessmentScore(testId, finalScore, { correct: score + (correct ? 1 : 0), total: TOTAL });
+          saveAssessmentScore(testId, finalScore, { attemptId: route.params?.attemptId, correct: score + (correct ? 1 : 0), total: TOTAL });
         } else {
           saveGameResult({ gameId: 'RuleSwitch', category: 'executive', score: finalScore, duration: 0 });
         }
@@ -78,8 +83,8 @@ const RuleSwitchGame = ({ navigation, route }) => {
           style={[styles.btn, { backgroundColor: colors.primary }]} 
           onPress={() => {
             if (isMandatoryFlow) {
-              saveAssessmentScore(testId, (score / TOTAL) * 100);
-              navigation.navigate('TestHub', { ...route.params, completedTest: testId });
+
+              navigation.goBack();
             } else {
               navigation.goBack();
             }
@@ -104,7 +109,7 @@ const RuleSwitchGame = ({ navigation, route }) => {
         {feedback && <Text style={{ color: feedback === '✓' ? colors.success : colors.error, fontSize: 32, fontWeight: '900', marginTop: 8 }}>{feedback}</Text>}
         <View style={styles.optGrid}>
           {trial.options.map(opt => (
-            <TouchableOpacity key={opt} style={[styles.opt, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1.5 }]} onPress={() => handleAnswer(opt)}>
+            <TouchableOpacity key={opt} style={[styles.opt, { backgroundColor: colors.surface, borderColor: colors.border, borderWidth: 1.5 }]} disabled={!!feedback} onPress={() => handleAnswer(opt)}>
               <Text style={{ color: colors.text, fontWeight: '700', fontSize: 15 }}>{opt}</Text>
             </TouchableOpacity>
           ))}

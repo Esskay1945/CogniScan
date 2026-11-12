@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
-import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
 import { Check, ChevronRight, Brain, Zap, CloudRain, Wind, Activity, AlertCircle, BookOpen, HelpCircle } from 'lucide-react-native';
 
@@ -18,7 +18,7 @@ const CONDITIONS = [
 
 const ConditionSelectScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const { saveSelectedConditions } = useData();
+
   const [selected, setSelected] = useState([]);
 
   const toggleCondition = (id) => {
@@ -28,14 +28,13 @@ const ConditionSelectScreen = ({ navigation }) => {
   const handleContinue = () => {
     if (selected.length === 0) return;
     const selectedConditions = CONDITIONS.filter(c => selected.includes(c.id));
-    saveSelectedConditions(selectedConditions);
-    navigation.navigate('Questionnaire', { conditions: selectedConditions });
+    navigation.navigate('Questionnaire', { conditions: selectedConditions.map(({ id }) => ({ id })) });
   };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-        
+
         {/* Header */}
         <View style={[styles.stepBadge, { backgroundColor: colors.accent + '15' }]}>
           <Text style={{ color: colors.accent, fontSize: 10, fontWeight: '900', letterSpacing: 1 }}>STEP 2 OF 3 · HISTORY FLOW</Text>
@@ -79,6 +78,9 @@ const ConditionSelectScreen = ({ navigation }) => {
           );
         })}
 
+        <TouchableOpacity onPress={() => navigation.navigate('SymptomFlow', { stage: 'background', hasHistory: true })}>
+          <Text style={{ color: colors.primary, paddingVertical: 16 }}>My condition is not listed or I prefer to skip the list</Text>
+        </TouchableOpacity>
         <View style={{ height: 120 }} />
       </ScrollView>
 

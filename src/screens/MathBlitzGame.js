@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -15,6 +16,8 @@ const MathBlitzGame = ({ navigation }) => {
   const [feedback, setFeedback] = useState(null);
   const timerRef = useRef(null);
   const TOTAL_TIME = 45;
+
+  useRecordCompletedGame(phase === 'result', 'MathBlitz', 'executive', score / Math.max(1, round) * 100);
 
   const generateProblem = () => {
     const ops = ['+', '-', '×'];

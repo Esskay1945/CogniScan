@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
-import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
 import { AlertCircle, ChevronRight, CheckCircle2, ShieldCheck, Activity, Brain, Eye, Zap, MessageSquare, Move, AlertTriangle } from 'lucide-react-native';
 
@@ -50,14 +50,14 @@ const RiskAssessmentScreen = ({ navigation, route }) => {
         <View style={styles.header}>
           <View style={[styles.badge, { backgroundColor: colors.primary + '15' }]}>
             <ShieldCheck size={14} color={colors.primary} />
-            <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1, marginLeft: 6 }}>EVALUATION COMPLETE</Text>
+            <Text style={{ color: colors.primary, fontSize: 10, fontWeight: '900', letterSpacing: 1, marginLeft: 6 }}>ASSESSMENT PLAN</Text>
           </View>
-          <Text style={[Typography.h1, { color: colors.text, marginTop: 12 }]}>RISK{'\n'}ASSESSMENT</Text>
+          <Text style={[Typography.h1, { color: colors.text, marginTop: 12 }]}>{assessment.mode === 'full' ? 'FULL ASSESSMENT' : 'RECOMMENDED TESTS'}</Text>
         </View>
 
         {/* Risk Summary */}
         <View style={[styles.infoCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' }}>COGNITIVE DOMAIN STATUS</Text>
+          <Text style={{ color: colors.textSecondary, fontSize: 12, fontWeight: '700' }}>QUESTIONNAIRE PRIORITIES</Text>
           <View style={styles.domainGrid}>
             {domainList.map((domain) => {
               const Icon = domain.Icon;

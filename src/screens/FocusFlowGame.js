@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -19,6 +20,8 @@ const FocusFlowGame = ({ navigation }) => {
   const TOTAL = 6;
   const TARGET_COLOR = colors.success;
   const DISTRACTOR_COLOR = colors.error;
+
+  useRecordCompletedGame(phase === 'result', 'FocusFlow', 'attention', score / TOTAL * 100);
 
   const generateField = () => {
     const targetCount = 3 + Math.floor(round / 2);

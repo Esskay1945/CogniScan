@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -17,6 +18,8 @@ const SpeedSortGame = ({ navigation }) => {
   const [startTime, setStartTime] = useState(0);
   const timerRef = useRef(null);
   const TOTAL = 5;
+
+  useRecordCompletedGame(phase === 'result', 'SpeedSort', 'motor', score / TOTAL * 100);
 
   const generateNumbers = (count) => {
     const nums = [];

@@ -63,7 +63,7 @@ const TowerSortGame = ({ navigation, route }) => {
             if (complete) {
               const finalScore = Math.max(0, 100 - (moves - 7) * 10);
               if (isMandatoryFlow) {
-                saveAssessmentScore(testId, finalScore, { moves });
+                saveAssessmentScore(testId, finalScore, { attemptId: route.params?.attemptId, moves });
               } else {
                 saveGameResult({ gameId: 'towerSort', category: 'executive', score: finalScore, duration: timer });
               }
@@ -111,7 +111,7 @@ const TowerSortGame = ({ navigation, route }) => {
           <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8 }}>{moves} moves (optimal: {optimalMoves})</Text>
           <TouchableOpacity 
             style={[styles.btn, { backgroundColor: colors.primary }]} 
-            onPress={() => isMandatoryFlow ? navigation.navigate('TestHub', { ...route.params, completedTest: testId }) : navigation.goBack()}
+            onPress={() => navigation.goBack()}
           >
             <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 15 }}>{isMandatoryFlow ? 'CONTINUE ASSESSMENT' : 'DONE'}</Text>
           </TouchableOpacity>

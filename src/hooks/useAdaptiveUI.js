@@ -25,7 +25,7 @@ export const useAdaptiveUI = () => {
   // 2. DataContext fontSizeScale (from AccessibilitySetup/CareMode toggles)
   // 3. ThemeContext fontScale (from FontSizeScreen on first launch)
   // Use the LARGEST of all active sources
-  const baseFontScale = Math.max(prefs.fontSizeScale || 1.0, themeFontScale || 1.0);
+  const baseFontScale = prefs.fontSizeScale ?? themeFontScale ?? 1.0;
   const fontScale = (elderMode || careMode) ? Math.max(1.4, baseFontScale) : baseFontScale;
 
   const oneTaskMode = careMode || elderMode || prefs.oneTaskMode || false;

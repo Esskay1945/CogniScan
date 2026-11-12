@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Typography } from '../theme';
@@ -15,6 +16,8 @@ const FlashRecallGame = ({ navigation }) => {
 
   const bank = ['#FF3D00', '#00E676', '#0066FF', '#FFD600', '#00F0FF', '#9B7BFF', '#FF00FF', '#FFFFFF'];
   const labels = ['ALPHA', 'BETA', 'GAMMA', 'DELTA', 'EPSILON', 'ZETA', 'ETA', 'THETA'];
+
+  useRecordCompletedGame(phase === 'result', 'FlashRecall', 'memory', ((level - 1) * 100 + correctCount / Math.max(1, items.length) * 100) / 6);
 
   const startLevel = () => {
     const itemCount = level + 2;
@@ -42,6 +45,10 @@ const FlashRecallGame = ({ navigation }) => {
       setCorrectCount(nextCount);
       if (nextCount === items.length) {
         setScore(s => s + (level * 100));
+        if (level >= bank.length - 2) {
+          setPhase('result');
+          return;
+        }
         setCorrectCount(0);
         setLevel(l => l + 1);
         setPhase('intro');

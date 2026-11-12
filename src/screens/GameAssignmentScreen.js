@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, Animated, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -43,7 +44,7 @@ const GameAssignmentScreen = ({ navigation }) => {
   }, [data.assignedGames]);
 
   const handleStartTraining = () => {
-    navigation.reset({ index: 0, routes: [{ name: 'Main' }] });
+    navigation.reset({ index: 0, routes: [{ name: 'Main', params: { screen: 'TrainingTab' } }] });
   };
 
   if (!data.assessmentCompleted) {

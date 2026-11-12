@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, StyleSheet, TextInput } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -14,7 +15,7 @@ const OBJECTS = [
     { id: 6, name: 'BOOK', Icon: Book },
 ];
 
-const ObjectNamingScreen = ({ navigation }) => {
+const ObjectNamingScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { saveAssessmentScore } = useData();
   const [phase, setPhase] = useState('naming'); // naming, result
@@ -31,7 +32,7 @@ const ObjectNamingScreen = ({ navigation }) => {
     if (currentIndex < OBJECTS.length - 1) {
         setCurrentIndex(currentIndex + 1);
     } else {
-        saveAssessmentScore('objectNaming', Math.round((newScore / OBJECTS.length) * 100));
+        saveAssessmentScore('objectNaming', Math.round((newScore / OBJECTS.length) * 100), { attemptId: route.params?.attemptId });
         setPhase('result');
     }
   };
@@ -73,7 +74,7 @@ const ObjectNamingScreen = ({ navigation }) => {
       <View style={styles.center}>
         <MessageSquare size={64} color={colors.success} />
         <Text style={[Typography.h1, { color: colors.text, marginTop: 20 }]}>LANGUAGE TEST DONE</Text>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.navigate('TestHub', { ...route.params, completedTest: 'objectNaming' })}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.goBack()}>
           <Text style={{ color: '#FFF', fontWeight: '900' }}>CONTINUE</Text>
           <ChevronRight size={20} color="#FFF" />
         </TouchableOpacity>
