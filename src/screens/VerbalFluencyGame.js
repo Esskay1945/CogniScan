@@ -53,7 +53,7 @@ const VerbalFluencyGame = ({ navigation, route }) => {
     const normalized = Math.min(100, Math.round((score / 15) * 100));
     
     if (isMandatoryFlow) {
-      saveAssessmentScore(testId, normalized, { wordCount: score, words: finalWords });
+      saveAssessmentScore(testId, normalized, { attemptId: route.params?.attemptId, wordCount: score, words: finalWords });
     } else {
       saveGameResult({ gameId: 'VerbalFluency', category: 'language', score: normalized, duration: TOTAL_TIME });
     }
@@ -162,7 +162,7 @@ const VerbalFluencyGame = ({ navigation, route }) => {
             <Text style={{ color: colors.textSecondary, fontSize: 14, marginTop: 6 }}>
               {words.length >= 15 ? 'Incredible fluency!' : words.length >= 10 ? 'Great verbal skills!' : 'Keep practicing!'}
             </Text>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => isMandatoryFlow ? navigation.navigate('TestHub', { ...route.params, completedTest: testId }) : navigation.goBack()}>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => navigation.goBack()}>
               <Text style={{ color: '#FFF', fontWeight: '700', fontSize: 16 }}>{isMandatoryFlow ? 'Continue Assessment' : 'Done'}</Text>
             </TouchableOpacity>
           </View>

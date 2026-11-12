@@ -1,12 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from 'react-native';
+import { View, StyleSheet, Animated } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Typography, Colors, WordBanks } from '../theme';
+import { useSpeech } from '../hooks/useSpeech';
+import { useData } from '../context/DataContext';
 import { useTheme } from '../context/ThemeContext';
 import { Brain, ArrowRight, Volume2 } from 'lucide-react-native';
 
 const WordPresentationScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
+  const { saveAssessmentWords } = useData();
+  const { speak } = useSpeech();
   const [phase, setPhase] = useState('intro'); // intro | showing | done
   const [currentWordIndex, setCurrentWordIndex] = useState(0);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -23,6 +28,7 @@ const WordPresentationScreen = ({ navigation, route }) => {
       Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }).start();
       
       if (currentWordIndex < words.length) {
+        speak(words[currentWordIndex]);
         const timer = setTimeout(() => {
           if (currentWordIndex < words.length - 1) {
             setCurrentWordIndex(prev => prev + 1);
@@ -38,7 +44,8 @@ const WordPresentationScreen = ({ navigation, route }) => {
   const startShowing = () => setPhase('showing');
 
   const proceed = () => {
-    navigation.navigate('TestHub', { ...route.params, words, completedTest: 'wordRecall' });
+    saveAssessmentWords(route.params?.attemptId, words);
+    navigation.goBack();
   };
 
   return (

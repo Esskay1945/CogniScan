@@ -1,5 +1,6 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useState } from 'react';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { View, Text, Platform, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -8,6 +9,26 @@ import { ChevronLeft, FileText, Shield, Check, AlertTriangle, Eye, TrendingUp, A
 const ClinicalReportScreen = ({ navigation }) => {
   const { colors } = useTheme();
   const { generateClinicalReport, data } = useData();
+  const [verified, setVerified] = useState(false);
+  const verify = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Verify identity to view this report' });
+      setVerified(result.success);
+    } catch {
+      Alert.alert('Verification unavailable', 'Use a mobile device with a screen lock to view this report.');
+    }
+  };
+  if (!verified) return (
+    <View style={{ flex: 1, justifyContent: 'center', padding: 28, backgroundColor: colors.background }}>
+      <Text style={{ color: colors.text, marginBottom: 24 }}>Verify your identity on a mobile device to view this report.</Text>
+      {Platform.OS !== 'web' && <TouchableOpacity accessibilityRole="button" onPress={verify}>
+        <Text style={{ color: colors.primary, marginBottom: 24 }}>Verify identity</Text>
+      </TouchableOpacity>}
+      <TouchableOpacity accessibilityRole="button" onPress={() => navigation.goBack()}>
+        <Text style={{ color: colors.primary }}>Go back</Text>
+      </TouchableOpacity>
+    </View>
+  );
   const report = generateClinicalReport();
 
   const sectionColor = (tag) => tag === 'Production' ? colors.success : tag === 'Pilot' ? colors.warning : colors.accent;
@@ -33,7 +54,7 @@ const ClinicalReportScreen = ({ navigation }) => {
         </View>
 
         {/* Domain Scores */}
-        <SectionTitle icon={Activity} title="DOMAIN SCORES" tag="Production" colors={colors} sectionColor={sectionColor} />
+        <SectionTitle icon={Activity} title="TASK SCORES" tag="Experimental" colors={colors} sectionColor={sectionColor} />
         <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
           {Object.entries(report.domainScores || {}).length > 0
             ? Object.entries(report.domainScores).map(([key, val]) => (
@@ -86,23 +107,6 @@ const ClinicalReportScreen = ({ navigation }) => {
               <Text style={{ color: colors.textSecondary, fontWeight: '800' }}>{s.value}</Text>
             </View>
           ))}
-        </View>
-
-        {/* Trajectory */}
-        <SectionTitle icon={TrendingUp} title="TRAJECTORY" tag="Experimental" colors={colors} sectionColor={sectionColor} />
-        <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-          <View style={styles.row}>
-            <Text style={{ color: colors.text, fontSize: 12, flex: 1 }}>30-Day Projection</Text>
-            <Text style={{ color: colors.primary, fontWeight: '900' }}>{report.trajectory.projected30d ?? '—'}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={{ color: colors.text, fontSize: 12, flex: 1 }}>90-Day Projection</Text>
-            <Text style={{ color: colors.accent, fontWeight: '900' }}>{report.trajectory.projected90d ?? '—'}</Text>
-          </View>
-          <View style={styles.row}>
-            <Text style={{ color: colors.text, fontSize: 12, flex: 1 }}>Classification</Text>
-            <Text style={{ color: colors.text, fontWeight: '900' }}>{report.trajectory.classification}</Text>
-          </View>
         </View>
 
         {/* Fairness */}

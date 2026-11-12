@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, StyleSheet, ScrollView } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -23,6 +24,8 @@ const MultiStepPlannerGame = ({ navigation, route }) => {
   const [userOrder, setUserOrder] = useState([]);
   const [available, setAvailable] = useState([]);
 
+  const maxScore = SCENARIOS.slice(0, 4).reduce((sum, item) => sum + item.steps.length, 0);
+
   const startRound = (r) => {
     const scenario = SCENARIOS[r % SCENARIOS.length];
     setAvailable([...scenario.steps].sort(() => Math.random() - 0.5));
@@ -39,7 +42,7 @@ const MultiStepPlannerGame = ({ navigation, route }) => {
     userOrder.forEach((step, i) => { if (step === correct[i]) pts++; });
     const newScore = score + pts;
     if (round < 3) { setScore(newScore); setRound(round + 1); startRound(round + 1); }
-    else { const finalScore = Math.round(((newScore + pts) / 24) * 100); if (isMandatoryFlow) { saveAssessmentScore(testId, finalScore, { correct: newScore + pts, total: 24 }); } else { saveGameResult({ gameId: 'MultiStepPlanner', category: 'executive', score: finalScore, duration: 0 }); } setScore(newScore + pts); setPhase('results'); }
+    else { const finalScore = Math.round((newScore / maxScore) * 100); if (isMandatoryFlow) { saveAssessmentScore(testId, finalScore, { attemptId: route.params?.attemptId, correct: newScore, total: maxScore }); } else { saveGameResult({ gameId: 'MultiStepPlanner', category: 'executive', score: finalScore, duration: 0 }); } setScore(newScore); setPhase('results'); }
   };
 
   if (phase === 'intro') return (
@@ -58,14 +61,14 @@ const MultiStepPlannerGame = ({ navigation, route }) => {
       <View style={styles.center}>
         <CheckCircle2 size={48} color={colors.success} />
         <Text style={[Typography.h1, { color: colors.text, marginTop: 16 }]}>DONE</Text>
-        <Text style={{ color: colors.primary, fontSize: 48, fontWeight: '900' }}>{score}/24</Text>
+        <Text style={{ color: colors.primary, fontSize: 48, fontWeight: '900' }}>{score}/{maxScore}</Text>
         <Text style={{ color: colors.textSecondary, marginTop: 8 }}>Steps correctly placed</Text>
         <TouchableOpacity 
           style={[styles.btn, { backgroundColor: colors.primary }]} 
           onPress={() => {
             if (isMandatoryFlow) {
-              saveAssessmentScore(testId, (score / 24) * 100);
-              navigation.navigate('TestHub', { ...route.params, completedTest: testId });
+
+              navigation.goBack();
             } else {
               navigation.goBack();
             }

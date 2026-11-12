@@ -3,11 +3,11 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, View, Platform } from 'react-native';
+import { StyleSheet, View, Platform, ActivityIndicator, Text, Pressable } from 'react-native';
 import 'react-native-gesture-handler';
 
 import { ThemeProvider, useTheme } from './src/context/ThemeContext';
-import { DataProvider as AppDataProvider } from './src/context/DataContext';
+import { useData, DataProvider as AppDataProvider } from './src/context/DataContext';
 import { AccessibilityProvider } from './src/components/AccessibilityProvider';
 
 // Onboarding & Auth
@@ -29,7 +29,6 @@ import WordPresentationScreen from './src/screens/WordPresentationScreen';
 import ReactionTestScreen from './src/screens/ReactionTestScreen';
 import PatternTestScreen from './src/screens/PatternTestScreen';
 import ClockTestScreen from './src/screens/ClockTestScreen';
-import SpeechTestScreen from './src/screens/SpeechTestScreen';
 import DelayedRecallScreen from './src/screens/DelayedRecallScreen';
 
 // Clinical Test Modules
@@ -44,7 +43,6 @@ import MentalRotationScreen from './src/screens/MentalRotationScreen';
 import FingerTappingScreen from './src/screens/FingerTappingScreen';
 
 // Results & Game Assignment
-import ResultsScreen from './src/screens/ResultsScreen';
 import AssessmentResultsScreen from './src/screens/AssessmentResultsScreen';
 import GameAssignmentScreen from './src/screens/GameAssignmentScreen';
 
@@ -180,33 +178,45 @@ function MainTabs() {
 function AppNavigator() {
   const { isDark, colors, fontLoaded } = useTheme();
 
-  if (!fontLoaded) return null;
+  const { loaded, session, accountError, retryAccount, syncError, logout } = useData();
+
+  if (!fontLoaded || !loaded) return <ActivityIndicator accessibilityLabel="Loading account" style={{ flex: 1 }} />;
+  if (accountError) return (
+    <View style={[styles.container, { justifyContent: 'center', padding: 28, backgroundColor: colors.background }]}>
+      <Text style={{ color: colors.text }}>CogniScan could not load your account. Check your connection and try again.</Text>
+      <Pressable accessibilityRole="button" onPress={retryAccount}><Text style={{ color: colors.primary, paddingVertical: 16 }}>Retry</Text></Pressable>
+      <Pressable accessibilityRole="button" onPress={() => logout().catch(() => {})}><Text style={{ color: colors.primary }}>Sign out</Text></Pressable>
+    </View>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <NavigationContainer
+        key={session?.user.id ?? 'signed-out'}
         onUnhandledAction={(action) => {
           // Silently ignore GO_BACK when there's nothing to go back to
           if (__DEV__) console.log('[Nav] Unhandled action:', action.type);
         }}
       >
         <Stack.Navigator
-          initialRouteName="Splash"
+          initialRouteName={session ? "Splash" : "Login"}
           screenOptions={{
             headerShown: false,
             cardStyle: { backgroundColor: colors.background },
             animationEnabled: true,
           }}
         >
+          {!session ? <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
+          </> : <>
           {/* Onboarding & Flow Orchestration */}
           <Stack.Screen name="FontSize" component={FontSizeScreen} />
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />
           <Stack.Screen name="Consent" component={ConsentScreen} />
           <Stack.Screen name="AccessibilitySetup" component={AccessibilitySetupScreen} />
           <Stack.Screen name="Splash" component={SplashScreen} />
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="Register" component={RegisterScreen} />
 
           {/* Screening & Entry */}
           <Stack.Screen name="EntryQuestion" component={EntryQuestionScreen} />
@@ -223,7 +233,6 @@ function AppNavigator() {
           <Stack.Screen name="ReactionTest" component={ReactionTestScreen} />
           <Stack.Screen name="PatternTest" component={PatternTestScreen} />
           <Stack.Screen name="ClockTest" component={ClockTestScreen} />
-          <Stack.Screen name="SpeechTest" component={SpeechTestScreen} />
           <Stack.Screen name="DelayedRecall" component={DelayedRecallScreen} />
           <Stack.Screen name="PairedAssociate" component={PairedAssociateScreen} />
           <Stack.Screen name="StoryRecall" component={StoryRecallScreen} />
@@ -236,7 +245,6 @@ function AppNavigator() {
           <Stack.Screen name="FingerTapping" component={FingerTappingScreen} />
 
           {/* Results & Mapping */}
-          <Stack.Screen name="Results" component={ResultsScreen} />
           <Stack.Screen name="AssessmentResults" component={AssessmentResultsScreen} />
           <Stack.Screen name="GameAssignment" component={GameAssignmentScreen} />
 
@@ -314,8 +322,10 @@ function AppNavigator() {
           <Stack.Screen name="MotionTracking" component={MotionTrackingGame} />
           <Stack.Screen name="ConfidenceMeter" component={ConfidenceMeterGame} />
           <Stack.Screen name="ErrorAwareness" component={ErrorAwarenessGame} />
+          </>}
         </Stack.Navigator>
       </NavigationContainer>
+      {syncError && <Text accessibilityLiveRegion="polite" style={{ backgroundColor: colors.surface, color: colors.text, padding: 8 }}>{syncError}</Text>}
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, PanResponder } from 'react-native';
+import { View, StyleSheet, Dimensions, PanResponder } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -22,21 +23,33 @@ const PrecisionHoldGame = ({ navigation, route }) => {
   const [holding, setHolding] = useState(false);
   const [inZone, setInZone] = useState(0);
   const [targetPos] = useState({ x: width / 2 - ZONE_SIZE / 2, y: 300 });
-  const touchRef = useRef(null);
-  const intervalRef = useRef(null);
+  const zone = useRef({ started: null, elapsed: 0 });
+  const changeZone = inside => {
+    const now = Date.now();
+    if (inside && zone.current.started === null) zone.current.started = now;
+    if (!inside && zone.current.started !== null) {
+      zone.current.elapsed += now - zone.current.started;
+      zone.current.started = null;
+    }
+  };
 
   useEffect(() => {
     if (phase === 'playing' && timeLeft > 0) {
-      const t = setTimeout(() => setTimeLeft(tl => tl - 1), 1000);
+      const t = setTimeout(() => {
+        const elapsed = zone.current.elapsed + (zone.current.started === null ? 0 : Date.now() - zone.current.started);
+        setInZone(elapsed / 1000);
+        setTimeLeft(tl => tl - 1);
+      }, 1000);
       return () => clearTimeout(t);
     }
     if (phase === 'playing' && timeLeft === 0) {
-      const pct = Math.round((inZone / DURATION) * 100);
+      changeZone(false);
+      const pct = Math.round(Math.min(1, zone.current.elapsed / (DURATION * 1000)) * 100);
       const newScores = [...scores, pct];
       if (round + 1 >= TOTAL_ROUNDS) {
         const avg = Math.round(newScores.reduce((a, b) => a + b, 0) / newScores.length);
         if (isMandatoryFlow) {
-          saveAssessmentScore(testId, avg, { rounds: newScores });
+          saveAssessmentScore(testId, avg, { attemptId: route.params?.attemptId, rounds: newScores });
         } else {
           saveGameResult({ gameId: 'PrecisionHold', category: 'motor', score: avg, duration: DURATION * TOTAL_ROUNDS });
         }
@@ -46,6 +59,7 @@ const PrecisionHoldGame = ({ navigation, route }) => {
         setScores(newScores);
         setRound(r => r + 1);
         setTimeLeft(DURATION);
+        zone.current = { started: null, elapsed: 0 };
         setInZone(0);
         setHolding(false);
       }
@@ -60,14 +74,15 @@ const PrecisionHoldGame = ({ navigation, route }) => {
       checkZone(e.nativeEvent);
     },
     onPanResponderMove: (e) => checkZone(e.nativeEvent),
-    onPanResponderRelease: () => setHolding(false),
+    onPanResponderRelease: () => { setHolding(false); changeZone(false); },
+    onPanResponderTerminate: () => { setHolding(false); changeZone(false); },
   });
 
   const checkZone = (evt) => {
-    const dx = evt.pageX - (targetPos.x + ZONE_SIZE / 2);
-    const dy = evt.pageY - (targetPos.y + ZONE_SIZE / 2);
+    const dx = evt.locationX - (targetPos.x + ZONE_SIZE / 2);
+    const dy = evt.locationY - (targetPos.y + ZONE_SIZE / 2);
     const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist <= ZONE_SIZE / 2) setInZone(z => z + 0.1);
+    changeZone(dist <= ZONE_SIZE / 2);
   };
 
   if (phase === 'intro') return (
@@ -95,15 +110,7 @@ const PrecisionHoldGame = ({ navigation, route }) => {
         ))}</View>
         <TouchableOpacity 
           style={[styles.btn, { backgroundColor: colors.primary }]} 
-          onPress={() => {
-            if (isMandatoryFlow) {
-              const avgScore = Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-              saveAssessmentScore(testId, avgScore);
-              navigation.navigate('TestHub', { ...route.params, completedTest: testId });
-            } else {
-              navigation.goBack();
-            }
-          }}
+          onPress={() => navigation.goBack()}
         >
           <Text style={{ color: '#FFF', fontWeight: '900' }}>{isMandatoryFlow ? 'CONTINUE ASSESSMENT' : 'DONE'}</Text>
         </TouchableOpacity>
@@ -112,14 +119,14 @@ const PrecisionHoldGame = ({ navigation, route }) => {
   );
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]} {...panResponder.panHandlers}>
-      <View style={styles.topBar}>
+      <View pointerEvents="none" style={styles.topBar}>
         <Text style={{ color: colors.textDisabled, fontSize: 12, fontWeight: '800' }}>ROUND {round + 1}/{TOTAL_ROUNDS}</Text>
         <Text style={{ color: timeLeft <= 3 ? colors.error : colors.primary, fontSize: 18, fontWeight: '900' }}>⏱ {timeLeft}s</Text>
       </View>
-      <View style={[styles.target, { left: targetPos.x, top: targetPos.y, width: ZONE_SIZE, height: ZONE_SIZE, backgroundColor: holding ? colors.primary + '30' : colors.primary + '10', borderColor: colors.primary }]}>
+      <View pointerEvents="none" style={[styles.target, { left: targetPos.x, top: targetPos.y, width: ZONE_SIZE, height: ZONE_SIZE, backgroundColor: holding ? colors.primary + '30' : colors.primary + '10', borderColor: colors.primary }]}>
         <Text style={{ fontSize: 24 }}>🎯</Text>
       </View>
-      <View style={styles.statusBar}>
+      <View pointerEvents="none" style={styles.statusBar}>
         <Text style={{ color: colors.textSecondary, fontSize: 13 }}>{holding ? '✋ Holding...' : '☝️ Press the target zone'}</Text>
         <Text style={{ color: colors.primary, fontWeight: '900', fontSize: 16 }}>Stability: {Math.round((inZone / Math.max(DURATION - timeLeft, 0.1)) * 100)}%</Text>
       </View>

@@ -161,7 +161,7 @@ const GamesScreen = ({ navigation }) => {
           <View style={{ marginBottom: 24 }}>
             <Text style={[Typography.caption, { color: colors.error, marginBottom: 12, fontWeight: '900' }]}>YOUR ASSIGNED GAMES</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 12 }}>
-                {data.assignedGames.filter(g => !g.completed).map((game, i) => (
+                {data.assignedGames.filter(g => g.completedDate !== new Date().toDateString()).map((game, i) => (
                     <TouchableOpacity 
                         key={`${game.id}-${i}`} 
                         style={[styles.assignCard, { backgroundColor: colors.surface, borderColor: game.status === 'mandatory' ? colors.error : colors.primary }]}

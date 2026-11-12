@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, PanResponder } from 'react-native';
+import { View, StyleSheet, PanResponder } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -26,7 +27,7 @@ const ComprehensionScreen = ({ navigation, route }) => {
             setCurrentStep(currentStep + 1);
         } else {
             const score = Math.max(0, 100 - (mistakes * 20));
-            saveAssessmentScore('comprehension', score);
+            saveAssessmentScore('comprehension', score, { attemptId: route.params?.attemptId });
             setComplete(true);
         }
     } else {
@@ -63,7 +64,7 @@ const ComprehensionScreen = ({ navigation, route }) => {
           <View style={styles.center}>
             <Check size={80} color={colors.success} />
             <Text style={[Typography.h1, { color: colors.text, marginTop: 24 }]}>COMPREHENSION DONE</Text>
-            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.navigate('TestHub', { ...route.params, completedTest: 'comprehension' })}>
+            <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.goBack()}>
               <Text style={{ color: '#FFF', fontWeight: '900' }}>CONTINUE</Text>
               <ChevronRight size={20} color="#FFF" />
             </TouchableOpacity>

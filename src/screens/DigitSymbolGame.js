@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
@@ -59,7 +59,7 @@ const DigitSymbolGame = ({ navigation, route }) => {
             const finalRounds = roundRef.current;
             const score = Math.min(100, Math.round((finalCorrect / 30) * 100));
             if (isMandatoryFlow) {
-              saveAssessmentScore(testId, score, { correct: finalCorrect, rounds: finalRounds });
+              saveAssessmentScore(testId, score, { attemptId: route.params?.attemptId, correct: finalCorrect, rounds: finalRounds });
             } else {
               saveGameResult({ gameId: 'digitSymbol', category: 'speed', score, duration: totalTime });
             }
@@ -116,7 +116,7 @@ const DigitSymbolGame = ({ navigation, route }) => {
           <Text style={[Typography.h1, { color: colors.text }]}>{score}%</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Digit Symbol Score</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8 }}>{correct} correct in 60s · {round} total attempts</Text>
-          <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => isMandatoryFlow ? navigation.navigate('TestHub', { ...route.params, completedTest: testId }) : navigation.goBack()}>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => navigation.goBack()}>
             <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 15 }}>{isMandatoryFlow ? 'CONTINUE ASSESSMENT' : 'DONE'}</Text>
           </TouchableOpacity>
         </View>

@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -40,6 +41,8 @@ const CCalibrationGame = ({ navigation }) => {
   const avgGap = guesses.length > 0
     ? Math.round(guesses.reduce((sum, g, i) => sum + Math.abs(g - actuals[i]), 0) / guesses.length)
     : 0;
+
+  useRecordCompletedGame(phase === 'result', 'Calibration', 'meta', Math.max(0, 100 - avgGap));
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>

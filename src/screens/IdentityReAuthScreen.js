@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import React from 'react';
+import * as LocalAuthentication from 'expo-local-authentication';
+import { View, Text, Alert, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -10,13 +11,20 @@ const { width } = Dimensions.get('window');
 const IdentityReAuthScreen = ({ navigation, route }) => {
   const { colors } = useTheme();
   const { confirmSecurityAuth, logSecurityEvent } = useData();
-  const { onSucess, target } = route.params || {};
+  const { onSuccess, target } = route.params || {};
 
-  const handleAuth = () => {
+  const handleAuth = async () => {
+    try {
+      const result = await LocalAuthentication.authenticateAsync({ promptMessage: 'Verify your identity' });
+      if (!result.success) return;
+    } catch {
+      Alert.alert('Verification unavailable', 'Use a device with a screen lock to verify your identity.');
+      return;
+    }
     confirmSecurityAuth();
     logSecurityEvent('SECURITY_AUTH_SUCCESS', { target });
     navigation.goBack();
-    if (onSucess) onSucess();
+    if (onSuccess) onSuccess();
   };
 
   return (
@@ -44,7 +52,7 @@ const IdentityReAuthScreen = ({ navigation, route }) => {
       <View style={[styles.disclaimer, { backgroundColor: colors.surface }]}>
         <ShieldAlert size={16} color={colors.textDisabled} />
         <Text style={{ color: colors.textDisabled, fontSize: 10, marginLeft: 12, flex: 1 }}>
-            Your data is kept safe on your device. No personal information leaves this device.
+            Progress syncs to your CogniScan account.
         </Text>
       </View>
     </View>

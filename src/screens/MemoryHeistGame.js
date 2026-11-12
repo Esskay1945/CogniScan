@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ScrollView } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -16,6 +17,8 @@ const MemoryHeistGame = ({ navigation }) => {
   const [score, setScore] = useState(0);
   const [round, setRound] = useState(0);
   const TOTAL = 5;
+
+  useRecordCompletedGame(phase === 'result', 'MemoryHeist', 'memory', score / TOTAL * 100);
 
   const genCode = (len) => Array.from({ length: len }, () => Math.floor(Math.random() * 10));
 

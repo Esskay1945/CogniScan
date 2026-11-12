@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -57,20 +58,20 @@ const GoNoGoGame = ({ navigation, route }) => {
           } else {
             setCorrect(c => c + 1); // Correctly didn't respond to NoGo
           }
-          advanceRound();
+          advanceRound({ correct: correct + Number(!stimulus.isGo), misses: misses + Number(stimulus.isGo), falseAlarms });
         }
       }, 1500);
       return () => clearTimeout(timeout);
     }
   }, [stimulus, responded]);
 
-  const advanceRound = () => {
+  const advanceRound = (final) => {
     const next = round + 1;
     setRound(next);
     if (next >= totalRounds) {
-      const score = Math.round((correct / totalRounds) * 100);
+      const score = Math.round((final.correct / totalRounds) * 100);
       if (isMandatoryFlow) {
-        saveAssessmentScore(testId, score, { misses, falseAlarms });
+        saveAssessmentScore(testId, score, { attemptId: route.params?.attemptId, misses: final.misses, falseAlarms: final.falseAlarms });
       } else {
         saveGameResult({ gameId: 'goNoGo', category: 'attention', score, duration: timer });
       }
@@ -88,7 +89,7 @@ const GoNoGoGame = ({ navigation, route }) => {
     } else {
       setFalseAlarms(f => f + 1);
     }
-    advanceRound();
+    advanceRound({ correct: correct + Number(stimulus.isGo), misses, falseAlarms: falseAlarms + Number(!stimulus.isGo) });
   };
 
   if (phase === 'tutorial') {
@@ -130,8 +131,8 @@ const GoNoGoGame = ({ navigation, route }) => {
           <TouchableOpacity 
             style={[styles.btn, { backgroundColor: colors.primary }]} 
             onPress={() => {
-              saveAssessmentScore(testId, score, { misses, falseAlarms });
-              isMandatoryFlow ? navigation.navigate('TestHub', { ...route.params, completedTest: testId }) : navigation.goBack();
+
+              navigation.goBack();
             }}
           >
             <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 15 }}>{isMandatoryFlow ? 'CONTINUE ASSESSMENT' : 'DONE'}</Text>

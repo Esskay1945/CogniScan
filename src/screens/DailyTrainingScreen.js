@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import { View, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { useAdaptiveUI } from '../hooks/useAdaptiveUI';
@@ -20,7 +21,7 @@ const { width } = Dimensions.get('window');
 
 const DailyTrainingScreen = ({ navigation }) => {
   const { colors } = useTheme();
-  const { data, generateMicroGoals, dismissDecayAlert } = useData();
+  const { data, generateMicroGoals, dismissDecayAlert, getCurrentStreak } = useData();
   const { prefs, adaptiveStyles } = useAdaptiveUI();
 
   useEffect(() => {
@@ -37,7 +38,8 @@ const DailyTrainingScreen = ({ navigation }) => {
   const getNextBestAction = () => {
     const risk = data.riskAssessment?.domains || {};
     const history = data.gameHistory || [];
-    const weakDomain = Object.entries(risk).find(([_, v]) => v === 'high')?.[0] 
+    const weakDomain = data.assignedGames.find(game => game.status === 'mandatory' && game.completedDate !== new Date().toDateString())?.domain
+      || Object.entries(risk).find(([_, v]) => v === 'high')?.[0]
       || Object.entries(risk).find(([_, v]) => v === 'moderate')?.[0]
       || 'memory';
     const domainLabel = weakDomain.charAt(0).toUpperCase() + weakDomain.slice(1);
@@ -61,9 +63,10 @@ const DailyTrainingScreen = ({ navigation }) => {
   const level = data.level || 1;
   const progress = (xp % 100) / 100;
   
-  const streak = data.streaks?.daily || 0;
+  const streak = getCurrentStreak();
   const missions = data.dailyMissions?.tasks || [];
-  const assigned = data.assignedGames || [];
+  const today = new Date().toDateString();
+  const assigned = (data.assignedGames || []).map(game => ({ ...game, completed: game.completedDate === today }));
 
   const handleGamePress = (game) => {
     navigation.navigate('ReadinessCheck', { 

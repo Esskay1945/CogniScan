@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -16,6 +17,8 @@ const PatternMatrixGame = ({ navigation }) => {
   const [score, setScore] = useState(0);
   const [round, setRound] = useState(0);
   const TOTAL = 6;
+
+  useRecordCompletedGame(phase === 'result', 'PatternMatrix', 'visuospatial', score / TOTAL * 100);
 
   const generatePattern = (size) => {
     const count = Math.min(size, Math.floor((gridSize * gridSize) / 2));

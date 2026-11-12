@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, StyleSheet, TextInput } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -27,13 +28,8 @@ const SentenceRepetitionScreen = ({ navigation, route }) => {
     const target = SENTENCES[currentIndex].toUpperCase().replace(/[.,]/g, '');
     const user = userInput.toUpperCase().replace(/[.,]/g, '').trim();
     
-    // Calculate Jaccard similarity or simple word count
-    const targetWords = target.split(' ');
-    const userWords = user.split(' ');
-    let matches = 0;
-    targetWords.forEach(w => { if (userWords.includes(w)) matches++; });
-    
-    const roundScore = (matches / targetWords.length) * 100;
+    const normalized = text => text.trim().replace(/\s+/g, ' ');
+    const roundScore = normalized(user) === normalized(target) ? 100 : 0;
     const totalScore = score + roundScore;
     setScore(totalScore);
     setUserInput('');
@@ -43,7 +39,7 @@ const SentenceRepetitionScreen = ({ navigation, route }) => {
         setPhase('read');
     } else {
         const finalScore = Math.round(totalScore / SENTENCES.length);
-        saveAssessmentScore('sentenceRep', finalScore);
+        saveAssessmentScore('sentenceRep', finalScore, { attemptId: route.params?.attemptId });
         setPhase('result');
     }
   };
@@ -52,7 +48,7 @@ const SentenceRepetitionScreen = ({ navigation, route }) => {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={styles.content}>
-           <Text style={[Typography.caption, { color: colors.primary }]}>READ AND LISTEN</Text>
+           <Text style={[Typography.caption, { color: colors.primary }]}>READ THE SENTENCE</Text>
            <View style={[styles.card, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                <Text style={{ color: colors.text, fontSize: 20, lineHeight: 30, textAlign: 'center' }}>"{SENTENCES[currentIndex]}"</Text>
            </View>
@@ -95,7 +91,7 @@ const SentenceRepetitionScreen = ({ navigation, route }) => {
       <View style={styles.center}>
         <Mic size={64} color={colors.success} />
         <Text style={[Typography.h1, { color: colors.text, marginTop: 20 }]}>TEST COMPLETE</Text>
-        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.navigate('TestHub', { ...route.params, completedTest: 'sentenceRep' })}>
+        <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary, width: '100%' }]} onPress={() => navigation.goBack()}>
           <Text style={{ color: '#FFF', fontWeight: '900' }}>CONTINUE</Text>
           <ChevronRight size={20} color="#FFF" />
         </TouchableOpacity>

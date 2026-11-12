@@ -74,7 +74,7 @@ const TrailMakingGame = ({ navigation, route }) => {
         } else {
           const score = Math.max(0, Math.round(100 - (elapsed / 2) - (errors * 10)));
           if (isMandatoryFlow) {
-            saveAssessmentScore(testId, score, { errors, elapsed: Math.round(elapsed) });
+            saveAssessmentScore(testId, score, { attemptId: route.params?.attemptId, errors, elapsed: Math.round(elapsed) });
           } else {
             saveGameResult({ gameId: 'trailMaking', category: 'attention', score, duration: Math.round(elapsed) });
           }
@@ -123,8 +123,8 @@ const TrailMakingGame = ({ navigation, route }) => {
             <View style={styles.stat}><Text style={{ color: colors.error, fontWeight: '800', fontSize: 20 }}>{errors}</Text><Text style={{ color: colors.textSecondary, fontSize: 10 }}>ERRORS</Text></View>
           </View>
           <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => {
-            saveAssessmentScore(testId, score, { elapsed, errors });
-            isMandatoryFlow ? navigation.navigate('TestHub', { ...route.params, completedTest: testId }) : navigation.goBack();
+
+            navigation.goBack();
           }}>
             <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 15 }}>{isMandatoryFlow ? 'CONTINUE ASSESSMENT' : 'DONE'}</Text>
           </TouchableOpacity>
