@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -48,7 +49,7 @@ const StroopChallengeGame = ({ navigation, route }) => {
     if (nextRound >= totalRounds) {
       const score = Math.round(((correct + (isCorrect ? 1 : 0)) / totalRounds) * 100);
       if (isMandatoryFlow) {
-        saveAssessmentScore(testId, score);
+        saveAssessmentScore(testId, score, { attemptId: route.params?.attemptId });
       } else {
         saveGameResult({ gameId: 'stroop', category: 'executive', score, duration: timer });
       }
@@ -93,8 +94,8 @@ const StroopChallengeGame = ({ navigation, route }) => {
           <TouchableOpacity 
             style={[styles.btn, { backgroundColor: colors.primary }]} 
             onPress={() => {
-              saveAssessmentScore(testId, score, { correct, incorrect });
-              isMandatoryFlow ? navigation.navigate('TestHub', { ...route.params, completedTest: testId }) : navigation.goBack();
+
+              navigation.goBack();
             }}
           >
             <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 15 }}>{isMandatoryFlow ? 'CONTINUE ASSESSMENT' : 'DONE'}</Text>

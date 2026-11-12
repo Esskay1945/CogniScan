@@ -1,3 +1,4 @@
+import * as LocalAuthentication from 'expo-local-authentication';
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -38,192 +39,44 @@ const ProfileScreen = ({ navigation }) => {
       'Are you sure you want to sign out? Your data will be saved.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: () => { logout(); navigation.replace('Login'); } },
+        { text: 'Sign Out', style: 'destructive', onPress: () => logout().catch(() => Alert.alert('Sign-out failed', 'Please try again.')) },
       ]
     );
   };
 
   const generateReport = async () => {
+    if (Platform.OS === 'web') {
+      Alert.alert('Download unavailable', 'Use the mobile app to download a report.');
+      return;
+    }
     setGenerating(true);
+    let temporaryFile;
     try {
-      const recallPct = latest?.recallScore != null ? Math.round((latest.recallScore / 3) * 100) : 'N/A';
-      const reactionAvg = latest?.reactionAvg || 'N/A';
-      const patternPct = latest?.patternScore != null ? Math.round((latest.patternScore / 4) * 100) : 'N/A';
-      const clockPct = latest?.clockScore || 'N/A';
-      const speechPct = latest?.speechScore || 'N/A';
+      const auth = await LocalAuthentication.authenticateAsync({ promptMessage: 'Verify identity to share your report' });
+      if (!auth.success) return;
+      if (!(await Sharing.isAvailableAsync())) throw new Error('File sharing is unavailable.');
 
-      // Calculate overall
-      const scores = [recallPct, patternPct, clockPct, speechPct].filter(v => v !== 'N/A');
-      const overallScore = scores.length > 0 ? Math.round(scores.reduce((a, b) => a + b, 0) / scores.length) : 'N/A';
+      const domainScores = Object.entries(latest?.domainScores || {}).map(([domain, score]) => `${domain}: ${score}%`);
+      const reportContent = [
+        'COGNISCAN ACTIVITY REPORT',
+        `Generated: ${new Date().toLocaleString()}`,
+        `Name: ${data.user?.name || 'Unknown'}`,
+        `Completed assessments: ${data.sessions.length}`,
+        `Latest task score: ${latest?.overall == null ? 'Unavailable' : latest.overall + '%'}`,
+        `Words recalled: ${latest?.recallScore == null ? 'Unavailable' : latest.recallScore + ' / 3'}`,
+        ...domainScores,
+        '',
+        'These scores summarize performance on CogniScan activities.',
+      ].join('\n');
 
-      const getStatus = (s) => {
-        if (s === 'N/A') return 'Not Assessed';
-        if (s >= 85) return 'Normal';
-        if (s >= 65) return 'Mild Impairment';
-        if (s >= 45) return 'Moderate Impairment';
-        return 'Significant Impairment';
-      };
-
-      const currentDate = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
-      const currentTime = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-
-      const mentalHistory = data.user?.mentalHealthHistory || [];
-      const questionnaireResults = data.user?.questionnaireResults || null;
-
-      const reportContent = `
-================================================================================
-                     COGNISCAN™ BRAIN HEALTH REPORT
-================================================================================
-
-                           CONFIDENTIAL MEDICAL DOCUMENT
-                        For Authorized Medical Personnel Only
-
-================================================================================
-REPORT ID:      CS-${Date.now().toString(36).toUpperCase()}
-DATE:           ${currentDate}
-TIME:           ${currentTime}
-FACILITY:       CogniScan Brain Health Platform
-PROTOCOL:       Standard Neuro-Cognitive Assessment Battery v2.0
-================================================================================
-
-PATIENT INFORMATION
-────────────────────────────────────────────────────────────────────────────────
-Full Name:          ${(data.user?.name || 'Unknown').toUpperCase()}
-Email:              ${data.user?.email || 'Not provided'}
-Age:                ${data.user?.age || 'Not provided'}
-Assessment Count:   ${data.sessions.length}
-Current Streak:     ${data.streak || 0} days
-================================================================================
-
-CLINICAL HISTORY
-────────────────────────────────────────────────────────────────────────────────
-Previous Mental Health Conditions: ${mentalHistory.length > 0 ? 'YES' : 'NO'}
-${mentalHistory.length > 0 ? `Reported Conditions: ${mentalHistory.join(', ')}` : 'No prior mental health conditions reported.'}
-
-${questionnaireResults ? `Pre-Assessment Questionnaire:
-  History Risk Score:       ${questionnaireResults.historyRiskScore}/100
-  Questionnaire Risk Score: ${questionnaireResults.questionnaireRiskScore}/100
-  Combined Risk Score:      ${questionnaireResults.overallRisk}/100
-  Weighting:                History 70% | Questionnaire 30%
-` : 'Pre-assessment questionnaire not completed.'}
-================================================================================
-
-COGNITIVE ASSESSMENT RESULTS
-────────────────────────────────────────────────────────────────────────────────
-
-Overall Brain Score:  ${overallScore}${overallScore !== 'N/A' ? '%' : ''}
-Clinical Status:           ${getStatus(overallScore)}
-Assessment Duration:       ${latest?.elapsed ? Math.round(latest.elapsed / 60) : 'N/A'} minutes
-
-Detailed Module Results:
-────────────────────────────────────────────────────────────────────────────────
-
-1. WORKING MEMORY (Word Recall)
-   Score:           ${recallPct}${recallPct !== 'N/A' ? '%' : ''}
-   Raw Score:       ${latest?.recallScore || 'N/A'}/3 words recalled
-   Clinical Status: ${getStatus(recallPct)}
-   Assessment:      Delayed word recall after interference tasks
-   Interpretation:  ${recallPct !== 'N/A' && recallPct >= 80 ? 'Working memory function within normal limits.' : recallPct !== 'N/A' ? 'Possible working memory deficit detected. Further evaluation recommended.' : 'Not assessed.'}
-
-2. PROCESSING SPEED (Reaction Time)
-   Average Time:    ${reactionAvg}${reactionAvg !== 'N/A' ? 'ms' : ''}
-   Clinical Status: ${reactionAvg !== 'N/A' ? (reactionAvg < 350 ? 'Normal' : reactionAvg < 500 ? 'Mild Delay' : 'Significant Delay') : 'Not Assessed'}
-   Assessment:      Simple reaction time measurement
-   Interpretation:  ${reactionAvg !== 'N/A' && reactionAvg < 400 ? 'Processing speed within expected range.' : reactionAvg !== 'N/A' ? 'Slower than expected processing speed. May indicate cognitive slowing.' : 'Not assessed.'}
-
-3. VISUAL-SPATIAL FUNCTION (Pattern Recognition)
-   Score:           ${patternPct}${patternPct !== 'N/A' ? '%' : ''}
-   Raw Score:       ${latest?.patternScore || 'N/A'}/4 patterns
-   Clinical Status: ${getStatus(patternPct)}
-   Assessment:      Sequential pattern recognition and reproduction
-   Interpretation:  ${patternPct !== 'N/A' && patternPct >= 75 ? 'Visual-spatial processing intact.' : patternPct !== 'N/A' ? 'Possible visual-spatial processing deficit.' : 'Not assessed.'}
-
-4. CONSTRUCTIONAL PRAXIS (Clock Drawing)
-   Score:           ${clockPct}${clockPct !== 'N/A' ? '%' : ''}
-   Clinical Status: ${getStatus(clockPct)}
-   Assessment:      Clock drawing and spatial organization
-   Interpretation:  ${clockPct !== 'N/A' && clockPct >= 75 ? 'Constructional abilities preserved.' : clockPct !== 'N/A' ? 'Possible constructional apraxia. Further neurological evaluation advised.' : 'Not assessed.'}
-
-5. SPEECH & LANGUAGE (Speech Rhythm Analysis)
-   Score:           ${speechPct}${speechPct !== 'N/A' ? '%' : ''}
-   Clinical Status: ${getStatus(speechPct)}
-   Assessment:      Speech rhythm, fluency, clarity, and pattern analysis
-   Interpretation:  ${speechPct !== 'N/A' && speechPct >= 75 ? 'Speech patterns within normal parameters.' : speechPct !== 'N/A' ? 'Possible speech irregularities detected. Consider speech-language pathology referral.' : 'Not assessed.'}
-
-================================================================================
-
-COGNITIVE DRIFT ANALYSIS
-────────────────────────────────────────────────────────────────────────────────
-Baseline Status:    ${data.baselineSet ? 'ESTABLISHED' : 'PENDING'}
-Total Sessions:     ${data.sessions.length}
-Drift Detected:     ${drift.hasDrift ? 'YES — ' + drift.overall + '% deviation' : 'NO — Within normal variation'}
-
-${drift.hasDrift ? `Drift Details:
-  Memory Drift:     ${drift.details?.recall || 0}%
-  Pattern Drift:    ${drift.details?.pattern || 0}%
-  Reaction Drift:   ${drift.details?.reaction || 0}%
-` : ''}
-================================================================================
-
-CLINICAL IMPRESSION
-────────────────────────────────────────────────────────────────────────────────
-${overallScore !== 'N/A' && overallScore >= 85 
-  ? 'Cognitive function is within normal limits across all assessed domains. No significant impairment detected. Recommend continued periodic monitoring.'
-  : overallScore !== 'N/A' && overallScore >= 65
-  ? 'Mild cognitive changes detected in one or more domains. These findings may warrant clinical follow-up and repeat assessment in 3-6 months. Consider lifestyle modifications and cognitive training exercises.'
-  : overallScore !== 'N/A' && overallScore >= 45
-  ? 'Moderate cognitive impairment detected across multiple domains. Clinical follow-up is strongly recommended. Consider comprehensive neuropsychological evaluation and potential neuroimaging studies.'
-  : overallScore !== 'N/A'
-  ? 'Significant cognitive impairment detected. Urgent clinical evaluation recommended. Refer to neurology or neuropsychology for comprehensive assessment. Consider neuroimaging and additional diagnostic workup.'
-  : 'Insufficient data for clinical impression. Complete assessment recommended.'}
-
-================================================================================
-
-RECOMMENDATIONS
-────────────────────────────────────────────────────────────────────────────────
-1. ${overallScore !== 'N/A' && overallScore < 65 ? 'Schedule follow-up with neurologist within 2-4 weeks' : 'Continue periodic cognitive monitoring'}
-2. ${drift.hasDrift ? 'Monitor cognitive drift trends closely' : 'Maintain current monitoring schedule'}
-3. Engage in recommended brain training games via CogniScan
-4. Maintain healthy sleep, exercise, and nutrition habits
-5. ${data.sessions.length < 3 ? 'Complete additional assessments to establish reliable baseline' : 'Review longitudinal trends at next assessment'}
-
-================================================================================
-
-DISCLAIMER
-────────────────────────────────────────────────────────────────────────────────
-This report is generated by CogniScan™ Brain Health Platform and is
-intended as a screening tool only. It does not constitute a medical diagnosis.
-All findings should be interpreted by a qualified healthcare professional in
-the context of the patient's complete medical history and clinical presentation.
-
-Report generated by: CogniScan™ Neuro-Cognitive Assessment Platform v2.0
-For questions: support@cogniscan.ai
-
-================================================================================
-                         END OF CONFIDENTIAL REPORT
-================================================================================
-`;
-
-      // Write to file system
-      const fileName = `CogniScan_Report_${data.user?.name?.replace(/\s+/g, '_') || 'Patient'}_${new Date().toISOString().split('T')[0]}.txt`;
-      const filePath = `${FileSystem.documentDirectory}${fileName}`;
-      
-      await FileSystem.writeAsStringAsync(filePath, reportContent);
-
-      // Share the file
-      if (await Sharing.isAvailableAsync()) {
-        await Sharing.shareAsync(filePath, {
-          mimeType: 'text/plain',
-          dialogTitle: 'CogniScan Diagnostic Report',
-          UTI: 'public.plain-text',
-        });
-      } else {
-        Alert.alert('Report Generated', `Report saved to:\n${filePath}`);
-      }
+      temporaryFile = `${FileSystem.cacheDirectory}cogniscan-report-${Date.now()}.txt`;
+      await FileSystem.writeAsStringAsync(temporaryFile, reportContent);
+      await Sharing.shareAsync(temporaryFile, { mimeType: 'text/plain', dialogTitle: 'CogniScan activity report', UTI: 'public.plain-text' });
     } catch (error) {
       Alert.alert('Error', 'Failed to generate report. Please try again.');
       console.error('Report generation error:', error);
     } finally {
+      if (temporaryFile) await FileSystem.deleteAsync(temporaryFile, { idempotent: true }).catch(() => {});
       setGenerating(false);
     }
   };

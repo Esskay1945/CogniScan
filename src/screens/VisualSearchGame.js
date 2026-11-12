@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -62,7 +63,7 @@ const VisualSearchGame = ({ navigation, route }) => {
       if (nextRound >= totalRounds) {
         const score = Math.max(0, Math.round(((found + 1) / totalRounds) * 100 - errors * 5));
         if (isMandatoryFlow) {
-          saveAssessmentScore(testId, score, { errors });
+          saveAssessmentScore(testId, score, { attemptId: route.params?.attemptId, errors });
         } else {
           saveGameResult({ gameId: 'visualSearch', category: 'attention', score, duration: timer });
         }
@@ -107,7 +108,7 @@ const VisualSearchGame = ({ navigation, route }) => {
           <Text style={[Typography.h1, { color: colors.text }]}>{score}%</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 14 }}>Visual Search Score</Text>
           <Text style={{ color: colors.textSecondary, fontSize: 12, marginTop: 8 }}>{found} found · {errors} errors · {timer}s</Text>
-          <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => isMandatoryFlow ? navigation.navigate('TestHub', { ...route.params, completedTest: testId }) : navigation.goBack()}>
+          <TouchableOpacity style={[styles.btn, { backgroundColor: colors.primary }]} onPress={() => navigation.goBack()}>
             <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 15 }}>{isMandatoryFlow ? 'CONTINUE ASSESSMENT' : 'DONE'}</Text>
           </TouchableOpacity>
         </View>

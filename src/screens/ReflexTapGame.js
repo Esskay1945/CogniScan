@@ -11,7 +11,7 @@ const AREA_H = 450;
 
 const ReflexTapGame = ({ navigation, route }) => {
   const { colors } = useTheme();
-  const { data, completeAssignedGame, updateDifficulty, logMetaCognitive, logTypingRhythm } = useData();
+  const { data, saveGameResult, updateDifficulty, logMetaCognitive, logTypingRhythm } = useData();
   const isMandatory = route.params?.isMandatory;
   const gameId = 'ReflexTap';
   
@@ -25,68 +25,65 @@ const ReflexTapGame = ({ navigation, route }) => {
   const [score, setScore] = useState(0);
   const [round, setRound] = useState(0);
   const [times, setTimes] = useState([]);
-  const [startTime, setStartTime] = useState(0);
-  const [lastTapTime, setLastTapTime] = useState(Date.now());
   const timerRef = useRef(null);
+  const run = useRef(null);
   const TOTAL = 12;
 
-  const spawnTarget = () => {
-    const size = baseSize + Math.random() * 15;
-    const x = Math.random() * (AREA_W - size);
-    const y = Math.random() * (AREA_H - size);
-    const targetColors = [colors.primary, colors.accent, colors.success, colors.warning, colors.error];
-    const color = targetColors[Math.floor(Math.random() * targetColors.length)];
-    setTarget({ x, y, size, color });
-    setStartTime(Date.now());
+  const advance = (latency = null) => {
+    const game = run.current;
+    if (!game?.active) return;
+    game.active = false;
+    clearTimeout(timerRef.current);
+    setTarget(null);
+    if (latency !== null) {
+      const now = Date.now();
+      if (game.lastTap) logTypingRhythm(now - game.lastTap);
+      game.lastTap = now;
+      game.times.push(latency);
+    }
+    game.round++;
+    setRound(game.round);
+    setScore(game.times.length);
+    setTimes([...game.times]);
 
-    timerRef.current = setTimeout(() => {
-      setRound(p => p + 1);
-      if (round + 1 >= TOTAL) handleFinish();
-      else spawnTarget();
-    }, spawnDelay);
+    if (game.round === TOTAL) {
+      const accuracy = game.times.length / TOTAL;
+      const average = game.times.reduce((sum, value) => sum + value, 0) / Math.max(1, game.times.length);
+      saveGameResult({ gameId, category: 'motor', score: accuracy * 100, duration: (Date.now() - game.start) / 1000 });
+      updateDifficulty(gameId, accuracy);
+      if (game.times.length) logMetaCognitive({ hesitation: average, span: 30 });
+      setPhase('result');
+    } else {
+      timerRef.current = setTimeout(spawnTarget, 200);
+    }
+  };
+
+  const spawnTarget = () => {
+    const game = run.current;
+    const size = baseSize + Math.random() * 15;
+    const targetColors = [colors.primary, colors.accent, colors.success, colors.warning, colors.error];
+    game.targetStart = Date.now();
+    game.active = true;
+    setTarget({ size, x: Math.random() * (AREA_W - size), y: Math.random() * (AREA_H - size),
+      color: targetColors[game.round % targetColors.length] });
+    timerRef.current = setTimeout(advance, spawnDelay);
   };
 
   const handleTap = () => {
-    const now = Date.now();
-    const interval = now - lastTapTime;
-    setLastTapTime(now);
-    
-    // Step 1: Passive Rhythm Analysis
-    logTypingRhythm(interval);
-
-    clearTimeout(timerRef.current);
-    const rt = Date.now() - startTime;
-    setTimes(p => [...p, rt]);
-    setScore(p => p + 1);
-    setRound(p => p + 1);
-    if (round + 1 >= TOTAL) { handleFinish(); return; }
-    setTimeout(spawnTarget, 200);
-  };
-
-  const handleFinish = () => {
-    setPhase('result');
-    const accuracy = score / TOTAL;
-    const avgRt = times.length > 0 ? times.reduce((a, b) => a + b, 0) / times.length : 2000;
-    
-    // Adaptation Engine: Update Difficulty
-    updateDifficulty(gameId, accuracy);
-    
-    // Meta-Cognitive Engine: Log Latency pattern
-    logMetaCognitive({ hesitation: avgRt, span: 30 });
-    
-    // retention Engine: Complete assignment
-    completeAssignedGame(gameId);
+    if (run.current?.active) advance(Date.now() - run.current.targetStart);
   };
 
   const start = () => {
-    setScore(0); setRound(0); setTimes([]);
+    clearTimeout(timerRef.current);
+    run.current = { start: Date.now(), round: 0, times: [], active: false, lastTap: 0 };
+    setScore(0);
+    setRound(0);
+    setTimes([]);
     setPhase('play');
-    setTimeout(spawnTarget, 500);
+    timerRef.current = setTimeout(spawnTarget, 500);
   };
 
-  useEffect(() => {
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, []);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
 
   const avg = times.length > 0 ? Math.round(times.reduce((a, b) => a + b, 0) / times.length) : 0;
 

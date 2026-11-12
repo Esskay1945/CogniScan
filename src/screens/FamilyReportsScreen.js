@@ -39,7 +39,7 @@ const FamilyReportsScreen = ({ navigation }) => {
     const report = generateWeeklyReport();
     Alert.alert(
       'Report Generated',
-      `Weekly report generated!\n\nSessions: ${report.sessionsCompleted}\nGames: ${report.gamesPlayed}\nTrend: ${report.trend}\nStreak: ${report.currentStreak} days\n\nIn a production app, this would be sent to ${data.familyMembers.map(m => m.name).join(', ')}.`
+      `Weekly report generated!\n\nSessions: ${report.sessionsCompleted}\nGames: ${report.gamesPlayed}\nTrend: ${report.trend}\nStreak: ${report.currentStreak} days\n\nThis report is a local preview.`
     );
   };
 

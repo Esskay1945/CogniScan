@@ -74,13 +74,13 @@ export class PredictiveEngine {
       welfareFactor.score * weights.welfare;
 
     // ── Projection ──
-    const currentAvg = history.slice(-10).reduce((a, g) => a + g.score, 0) / Math.min(10, history.length);
+    const currentAvg = history.slice(-10).reduce((a, g) => a + (g.adjustedScore ?? g.score), 0) / Math.min(10, history.length);
     const monthlyRate = compositeScore * 1.5;
     const projected30d = Math.round(Math.min(100, Math.max(0, currentAvg + monthlyRate)));
     const projected90d = Math.round(Math.min(100, Math.max(0, currentAvg + monthlyRate * 3)));
 
     // ── Confidence Interval ──
-    const uncertainty = varianceFactor.stdDev * (1 + (1 - (history.length / 50)));
+    const uncertainty = varianceFactor.stdDev * (2 - Math.min(1, history.length / 50));
     const confidenceInterval = {
       lower30d: Math.round(Math.max(0, projected30d - uncertainty)),
       upper30d: Math.round(Math.min(100, projected30d + uncertainty)),
@@ -95,7 +95,7 @@ export class PredictiveEngine {
     else if (compositeScore < -3) classification = 'Declining';
     else if (compositeScore < -1) classification = 'Trending Down';
     
-    if (varianceFactor.score < -5) classification = 'Uncertain';
+    if (varianceFactor.stdDev > 25) classification = 'Uncertain';
 
     // ── Probabilities ──
     const sigmoid = (x) => 1 / (1 + Math.exp(-x));
@@ -146,8 +146,8 @@ export class PredictiveEngine {
   static _computeDomainTrend(history) {
     const recent = history.slice(-10);
     const older = history.slice(-20, -10);
-    const recentAvg = recent.reduce((a, g) => a + g.score, 0) / recent.length;
-    const olderAvg = older.length > 0 ? older.reduce((a, g) => a + g.score, 0) / older.length : recentAvg;
+    const recentAvg = recent.reduce((a, g) => a + (g.adjustedScore ?? g.score), 0) / recent.length;
+    const olderAvg = older.length > 0 ? older.reduce((a, g) => a + (g.adjustedScore ?? g.score), 0) / older.length : recentAvg;
     const trend = recentAvg - olderAvg;
     return { name: 'Domain Performance', score: trend, recentAvg, olderAvg };
   }
@@ -187,7 +187,7 @@ export class PredictiveEngine {
   }
 
   static _computeVarianceFactor(history) {
-    const scores = history.map(g => g.score);
+    const scores = history.map(g => (g.adjustedScore ?? g.score));
     const mean = scores.reduce((a, b) => a + b, 0) / scores.length;
     const variance = scores.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / scores.length;
     const stdDev = Math.sqrt(variance);

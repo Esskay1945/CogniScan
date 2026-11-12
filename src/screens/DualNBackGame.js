@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useRef, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -22,6 +23,8 @@ const DualNBackGame = ({ navigation }) => {
     { row: 1, col: 0 }, { row: 1, col: 1 }, { row: 1, col: 2 },
     { row: 2, col: 0 }, { row: 2, col: 1 }, { row: 2, col: 2 },
   ];
+
+  useRecordCompletedGame(phase === 'result', 'DualNBack', 'attention', score / TOTAL_ITEMS * 100);
 
   const generateSequence = () => {
     const seq = [];

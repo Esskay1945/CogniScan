@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
+import { View, StyleSheet, Dimensions } from 'react-native';
+import { AdaptiveText as Text, AccessibleTouchable as TouchableOpacity } from '../components/AccessibilityProvider';
 import { useTheme } from '../context/ThemeContext';
 import { useData } from '../context/DataContext';
 import { Typography } from '../theme';
@@ -27,7 +28,7 @@ const EntryQuestionScreen = ({ navigation }) => {
       <View style={styles.options}>
         <TouchableOpacity 
           style={[styles.optionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => navigation.navigate('MentalHealthHistory')}
+          onPress={() => navigation.navigate('ConditionSelect')}
         >
           <View style={[styles.iconBox, { backgroundColor: colors.primary + '10' }]}>
             <History size={24} color={colors.primary} />
@@ -43,7 +44,7 @@ const EntryQuestionScreen = ({ navigation }) => {
 
         <TouchableOpacity 
           style={[styles.optionCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-          onPress={() => navigation.navigate('SymptomFlow')}
+          onPress={() => navigation.navigate('SymptomFlow', { stage: 'background' })}
         >
           <View style={[styles.iconBox, { backgroundColor: colors.accent + '10' }]}>
             <Thermometer size={24} color={colors.accent} />

@@ -1,3 +1,4 @@
+import { useRecordCompletedGame } from '../hooks/useRecordCompletedGame';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions } from 'react-native';
 import { Typography, Colors } from '../theme';
@@ -18,6 +19,8 @@ const ColorMatchGame = ({ navigation }) => {
 
   const colorNames = ['RED', 'BLUE', 'GREEN', 'YELLOW', 'PURPLE', 'ORANGE'];
   const colorValues = { RED: '#FF3D00', BLUE: '#0066FF', GREEN: '#00E676', YELLOW: '#FFD600', PURPLE: '#9B7BFF', ORANGE: '#FF8A65' };
+
+  useRecordCompletedGame(phase === 'result', 'ColorMatch', 'attention', score / Math.max(1, round) * 100);
 
   const generateWord = () => {
     const textIdx = Math.floor(Math.random() * colorNames.length);
